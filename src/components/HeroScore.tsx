@@ -64,7 +64,7 @@ export function HeroScore({ rhrData, hrvData, sleepData }: HeroScoreProps) {
 
   return (
     <div className="glass p-6 animate-in">
-      <div className="flex items-center gap-8">
+      <div className="flex flex-col sm:flex-row items-center gap-6 sm:gap-8">
         {/* Gauge */}
         <div className="relative shrink-0" style={{ width: size, height: size }}>
           <svg width={size} height={size} className="transform rotate-[135deg]">

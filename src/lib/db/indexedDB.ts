@@ -10,17 +10,14 @@ function getDB() {
   if (!dbPromise) {
     dbPromise = openDB(DB_NAME, DB_VERSION, {
       upgrade(db) {
-        // Store for daily metric summaries: key = "metricKey:YYYY-MM-DD"
         if (!db.objectStoreNames.contains("metrics")) {
           const store = db.createObjectStore("metrics", { keyPath: "id" });
           store.createIndex("byKey", "key");
           store.createIndex("byDate", "date");
         }
-        // Store for sleep nights
         if (!db.objectStoreNames.contains("sleep")) {
           db.createObjectStore("sleep", { keyPath: "date" });
         }
-        // Store for metadata
         if (!db.objectStoreNames.contains("meta")) {
           db.createObjectStore("meta", { keyPath: "id" });
         }
@@ -31,7 +28,7 @@ function getDB() {
 }
 
 /**
- * Save parsed health data to IndexedDB
+ * Save parsed health data — INCREMENTAL: merges with existing data
  */
 export async function saveHealthData(
   summaries: Record<string, DailySummary[]>,
@@ -40,78 +37,75 @@ export async function saveHealthData(
 ): Promise<void> {
   const db = await getDB();
 
-  // Clear existing data
-  const tx1 = db.transaction(["metrics", "sleep", "meta"], "readwrite");
-  await tx1.objectStore("metrics").clear();
-  await tx1.objectStore("sleep").clear();
-  await tx1.objectStore("meta").clear();
-  await tx1.done;
-
-  // Save metrics in batches
+  // Merge metrics (put = upsert, overwrites if same key:date exists)
   const tx2 = db.transaction("metrics", "readwrite");
   const store = tx2.objectStore("metrics");
   for (const [key, days] of Object.entries(summaries)) {
     for (const day of days) {
-      await store.put({
-        id: `${key}:${day.date}`,
-        key,
-        ...day,
-      });
+      await store.put({ id: `${key}:${day.date}`, key, ...day });
     }
   }
   await tx2.done;
 
-  // Save sleep
+  // Merge sleep (put = upsert by date)
   const tx3 = db.transaction("sleep", "readwrite");
   for (const night of sleepNights) {
     await tx3.objectStore("sleep").put(night);
   }
   await tx3.done;
 
-  // Save meta
+  // Update meta: expand date range, update record count
+  const existingMeta = await getMeta();
+  const mergedMeta: DataMeta & { id: string } = {
+    id: "main",
+    importDate: meta.importDate,
+    totalRecords: existingMeta
+      ? existingMeta.totalRecords + meta.totalRecords
+      : meta.totalRecords,
+    dateRange: {
+      start: existingMeta
+        ? meta.dateRange.start < existingMeta.dateRange.start ? meta.dateRange.start : existingMeta.dateRange.start
+        : meta.dateRange.start,
+      end: existingMeta
+        ? meta.dateRange.end > existingMeta.dateRange.end ? meta.dateRange.end : existingMeta.dateRange.end
+        : meta.dateRange.end,
+    },
+    availableMetrics: [
+      ...new Set([
+        ...(existingMeta?.availableMetrics || []),
+        ...meta.availableMetrics,
+      ]),
+    ],
+  };
+
   const tx4 = db.transaction("meta", "readwrite");
-  await tx4.objectStore("meta").put({ id: "main", ...meta });
+  await tx4.objectStore("meta").put(mergedMeta);
   await tx4.done;
 }
 
-/**
- * Get all daily summaries for a metric
- */
 export async function getMetricData(metricKey: string): Promise<DailySummary[]> {
   const db = await getDB();
   const all = await db.getAllFromIndex("metrics", "byKey", metricKey);
   return all.sort((a, b) => a.date.localeCompare(b.date));
 }
 
-/**
- * Get all sleep nights
- */
 export async function getSleepData(): Promise<SleepNight[]> {
   const db = await getDB();
   const all = await db.getAll("sleep");
   return all.sort((a, b) => a.date.localeCompare(b.date));
 }
 
-/**
- * Get metadata
- */
 export async function getMeta(): Promise<DataMeta | null> {
   const db = await getDB();
   const meta = await db.get("meta", "main");
   return meta || null;
 }
 
-/**
- * Check if data exists
- */
 export async function hasData(): Promise<boolean> {
   const meta = await getMeta();
   return meta !== null;
 }
 
-/**
- * Clear all stored data
- */
 export async function clearData(): Promise<void> {
   const db = await getDB();
   const tx = db.transaction(["metrics", "sleep", "meta"], "readwrite");
@@ -119,4 +113,35 @@ export async function clearData(): Promise<void> {
   await tx.objectStore("sleep").clear();
   await tx.objectStore("meta").clear();
   await tx.done;
+}
+
+/**
+ * Export all data as JSON string (for cross-device transfer)
+ */
+export async function exportAllData(): Promise<string> {
+  const meta = await getMeta();
+  if (!meta) return "{}";
+
+  const metrics: Record<string, DailySummary[]> = {};
+  for (const key of meta.availableMetrics) {
+    if (key === "sleepAnalysis") continue;
+    metrics[key] = await getMetricData(key);
+  }
+  const sleep = await getSleepData();
+
+  return JSON.stringify({ metrics, sleepNights: sleep, meta }, null, 0);
+}
+
+/**
+ * Import data from JSON string (from another device)
+ */
+export async function importFromJSON(jsonStr: string): Promise<{
+  metrics: Record<string, DailySummary[]>;
+  sleepNights: SleepNight[];
+  meta: DataMeta;
+}> {
+  const data = JSON.parse(jsonStr);
+  if (!data.meta || !data.metrics) throw new Error("Format JSON invalid");
+  await saveHealthData(data.metrics, data.sleepNights || [], data.meta);
+  return data;
 }

@@ -57,7 +57,7 @@ export default function Home() {
 
       <FileUpload />
 
-      <div className="mt-16 grid grid-cols-2 sm:grid-cols-4 gap-6 max-w-2xl w-full text-center">
+      <div className="mt-12 sm:mt-16 grid grid-cols-2 sm:grid-cols-4 gap-4 sm:gap-6 max-w-2xl w-full text-center px-2">
         {[
           { icon: "♥", label: "Scor Recuperare", desc: "Ca WHOOP, gratis" },
           { icon: "📊", label: "Analiza Trenduri", desc: "Intervale de incredere + anomalii" },

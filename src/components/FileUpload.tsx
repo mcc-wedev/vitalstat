@@ -3,7 +3,7 @@
 import { useState, useCallback, useRef } from "react";
 import JSZip from "jszip";
 import { parseHealthBuffer } from "@/lib/parser/xmlParser";
-import { saveHealthData } from "@/lib/db/indexedDB";
+import { saveHealthData, importFromJSON } from "@/lib/db/indexedDB";
 import { useHealthStore } from "@/stores/healthStore";
 
 export function FileUpload() {
@@ -43,10 +43,18 @@ export function FileUpload() {
           setStatus("Decompressing XML (this may take a moment)...");
           buffer = await xmlFile.async("arraybuffer");
         } else if (file.name.endsWith(".xml")) {
-          setStatus("Reading XML file...");
+          setStatus("Se citeste XML...");
           buffer = await file.arrayBuffer();
+        } else if (file.name.endsWith(".json")) {
+          // Import from VitalStat JSON export
+          setStatus("Se importa din JSON...");
+          const text = await file.text();
+          const result = await importFromJSON(text);
+          setData(result.metrics, result.sleepNights, result.meta);
+          setStatus("");
+          return;
         } else {
-          throw new Error("Please upload a .zip or .xml file");
+          throw new Error("Uploadeaza un fisier .zip, .xml sau .json");
         }
 
         const sizeMB = (buffer.byteLength / 1024 / 1024).toFixed(0);
@@ -128,7 +136,7 @@ export function FileUpload() {
         <input
           ref={fileRef}
           type="file"
-          accept=".zip,.xml"
+          accept=".zip,.xml,.json"
           onChange={handleFileSelect}
           className="hidden"
         />
@@ -141,10 +149,10 @@ export function FileUpload() {
               </svg>
             </div>
             <p className="text-foreground font-medium mb-1">
-              Trage fisierul Apple Health export aici
+              Trage fisierul Apple Health aici
             </p>
             <p className="text-muted text-sm">
-              .zip sau .xml din iPhone → Sanatate → Exporta toate datele
+              .zip sau .xml din iPhone · sau .json exportat de pe alt dispozitiv
             </p>
           </>
         ) : (

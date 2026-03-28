@@ -26,11 +26,18 @@ export function FileUpload() {
         if (file.name.endsWith(".zip")) {
           setStatus("Extracting ZIP...");
           const zip = await JSZip.loadAsync(file);
-          const xmlFile =
-            zip.file("apple_health_export/export.xml") ||
-            zip.file("export.xml");
+          // Search for export.xml in any path
+          let xmlFile = zip.file("apple_health_export/export.xml")
+            || zip.file("export.xml");
           if (!xmlFile) {
-            throw new Error("No export.xml found in ZIP archive");
+            // Fallback: find any file named export.xml
+            const allFiles = Object.keys(zip.files);
+            const found = allFiles.find((f) => f.endsWith("export.xml"));
+            if (found) xmlFile = zip.file(found);
+          }
+          if (!xmlFile) {
+            const allFiles = Object.keys(zip.files).slice(0, 10).join(", ");
+            throw new Error(`No export.xml found in ZIP. Files found: ${allFiles}`);
           }
           setStatus("Decompressing XML...");
           xmlText = await xmlFile.async("string");
@@ -40,7 +47,12 @@ export function FileUpload() {
           throw new Error("Please upload a .zip or .xml file");
         }
 
-        setStatus(`Parsing ${(xmlText.length / 1024 / 1024).toFixed(0)}MB of health data...`);
+        const sizeMB = (xmlText.length / 1024 / 1024).toFixed(0);
+        setStatus(`Parsing ${sizeMB}MB of health data...`);
+
+        if (xmlText.length < 100) {
+          throw new Error(`XML file seems empty or too small (${xmlText.length} bytes)`);
+        }
 
         parseHealthXML(
           xmlText,
@@ -57,6 +69,10 @@ export function FileUpload() {
             await saveHealthData(result.summaries, result.sleepNights, result.meta);
             setData(result.summaries, result.sleepNights, result.meta);
             setStatus("");
+          },
+          (errorMsg) => {
+            setError(errorMsg);
+            setLoading(false);
           }
         );
       } catch (err) {

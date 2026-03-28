@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html><body>
+<canvas id="c192" width="192" height="192"></canvas>
+<canvas id="c512" width="512" height="512"></canvas>
+<script>
+function draw(canvas, size) {
+  const ctx = canvas.getContext('2d');
+  const r = size * 0.2;
+  ctx.fillStyle = '#0a0a0a';
+  ctx.beginPath();
+  ctx.roundRect(0, 0, size, size, r);
+  ctx.fill();
+  // Heart
+  ctx.strokeStyle = '#10b981';
+  ctx.lineWidth = size * 0.04;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  const cx = size/2, cy = size*0.42;
+  const hs = size * 0.28;
+  ctx.beginPath();
+  ctx.moveTo(cx, cy + hs*0.8);
+  ctx.bezierCurveTo(cx - hs*1.5, cy - hs*0.2, cx - hs*0.8, cy - hs*1.2, cx, cy - hs*0.4);
+  ctx.bezierCurveTo(cx + hs*0.8, cy - hs*1.2, cx + hs*1.5, cy - hs*0.2, cx, cy + hs*0.8);
+  ctx.stroke();
+  // Pulse line
+  ctx.strokeStyle = '#10b981';
+  ctx.lineWidth = size * 0.015;
+  ctx.globalAlpha = 0.5;
+  const y = size * 0.65;
+  ctx.beginPath();
+  ctx.moveTo(size*0.15, y);
+  ctx.lineTo(size*0.3, y);
+  ctx.lineTo(size*0.38, y - size*0.12);
+  ctx.lineTo(size*0.48, y + size*0.15);
+  ctx.lineTo(size*0.58, y - size*0.08);
+  ctx.lineTo(size*0.65, y);
+  ctx.lineTo(size*0.85, y);
+  ctx.stroke();
+}
+draw(document.getElementById('c192'), 192);
+draw(document.getElementById('c512'), 512);
+</script>
+</body></html>

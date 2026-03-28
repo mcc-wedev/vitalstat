@@ -10,8 +10,15 @@ import { HeroScore } from "@/components/HeroScore";
 import { InsightsPanel } from "@/components/InsightsPanel";
 import { DateRangePicker } from "@/components/DateRangePicker";
 import { DailyReport } from "@/components/DailyReport";
+import { CorrelationHeatmap } from "@/components/CorrelationHeatmap";
+import { RecoveryTimeline } from "@/components/RecoveryTimeline";
+import { WeeklyDigest } from "@/components/WeeklyDigest";
+import { CalendarHeatmap } from "@/components/CalendarHeatmap";
+import { GoalsTracker } from "@/components/GoalsTracker";
+import { PDFExport } from "@/components/PDFExport";
 import { METRIC_CONFIG, CATEGORIES, type MetricCategory } from "@/lib/parser/healthTypes";
 import type { DailySummary, SleepNight } from "@/lib/parser/healthTypes";
+import { Onboarding } from "@/components/Onboarding";
 import { clearData, exportAllData } from "@/lib/db/indexedDB";
 
 const TABS: { key: MetricCategory | "overview"; label: string }[] = [
@@ -77,6 +84,7 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen flex flex-col bg-gradient-subtle">
+      <Onboarding />
       {/* Header */}
       <header className="sticky top-0 z-50 backdrop-blur-xl border-b border-[var(--glass-border)] bg-[rgba(5,5,8,0.85)]">
         <div className="max-w-6xl mx-auto px-3 sm:px-4">
@@ -90,6 +98,7 @@ export default function Dashboard() {
               <h1 className="text-sm sm:text-base font-bold">VitalStat</h1>
             </div>
             <div className="flex items-center gap-2">
+              <PDFExport metrics={metrics} sleepNights={sleepNights} />
               <button onClick={handleExport} className="pill text-[10px]" title="Exporta date JSON">📤</button>
               <button onClick={handleReset} className="text-[10px] text-red-400/60 hover:text-red-400 px-2">Sterge</button>
             </div>
@@ -199,7 +208,29 @@ function OverviewTab({
         </div>
       </section>
 
-      {/* Row 4: All insights (expandable) */}
+      {/* Row 4: Goals + Weekly Digest side by side */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <GoalsTracker metrics={metrics} sleepNights={sleepNights} />
+        <WeeklyDigest metrics={metrics} sleepNights={sleepNights} />
+      </div>
+
+      {/* Row 5: Recovery Timeline */}
+      <RecoveryTimeline
+        rhrData={allMetrics.restingHeartRate || []}
+        hrvData={allMetrics.hrv || []}
+        sleepData={allSleep}
+        exerciseData={allMetrics.exerciseTime}
+        respData={allMetrics.respiratoryRate}
+        spo2Data={allMetrics.oxygenSaturation}
+      />
+
+      {/* Row 6: Calendar Heatmap */}
+      <CalendarHeatmap metrics={metrics} />
+
+      {/* Row 7: Correlation Heatmap */}
+      <CorrelationHeatmap metrics={metrics} />
+
+      {/* Row 8: All insights (expandable) */}
       {!showAllInsights ? (
         <button
           onClick={() => setShowAllInsights(true)}
@@ -214,7 +245,7 @@ function OverviewTab({
         </section>
       )}
 
-      {/* Additional metric cards by category (collapsed) */}
+      {/* Additional metric cards by category */}
       {(Object.keys(CATEGORIES) as MetricCategory[]).map((cat) => {
         const keys = metricsForCategory(cat).filter(k => !keyMetrics.includes(k));
         if (keys.length === 0) return null;

@@ -16,6 +16,13 @@ import { WeeklyDigest } from "@/components/WeeklyDigest";
 import { CalendarHeatmap } from "@/components/CalendarHeatmap";
 import { GoalsTracker } from "@/components/GoalsTracker";
 import { PDFExport } from "@/components/PDFExport";
+import { BehaviorJournal } from "@/components/BehaviorJournal";
+import { StrainCoach } from "@/components/StrainCoach";
+import { ResilienceScore } from "@/components/ResilienceScore";
+import { StabilityScores } from "@/components/StabilityScores";
+import { SleepBank } from "@/components/SleepBank";
+import { BiologicalAge } from "@/components/BiologicalAge";
+import { MonthlyRecap } from "@/components/MonthlyRecap";
 import { METRIC_CONFIG, CATEGORIES, type MetricCategory } from "@/lib/parser/healthTypes";
 import type { DailySummary, SleepNight } from "@/lib/parser/healthTypes";
 import { Onboarding } from "@/components/Onboarding";
@@ -201,7 +208,13 @@ function OverviewTab({
         </div>
       </section>
 
-      {/* Row 3: Two trend charts side by side */}
+      {/* Row 3: Strain Coach + Biological Age */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <StrainCoach metrics={allMetrics} sleepNights={allSleep} />
+        <BiologicalAge metrics={allMetrics} sleepNights={allSleep} />
+      </div>
+
+      {/* Row 4: Two trend charts side by side */}
       <section>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {metrics.restingHeartRate?.length > 0 && <TrendChart metricKey="restingHeartRate" data={metrics.restingHeartRate} />}
@@ -209,13 +222,26 @@ function OverviewTab({
         </div>
       </section>
 
-      {/* Row 4: Goals + Weekly Digest side by side */}
+      {/* Row 5: Goals + Weekly Digest */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <GoalsTracker metrics={metrics} sleepNights={sleepNights} />
         <WeeklyDigest metrics={metrics} sleepNights={sleepNights} />
       </div>
 
-      {/* Row 5: Recovery Timeline */}
+      {/* Row 6: Resilience + Stability + Sleep Bank */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <ResilienceScore metrics={allMetrics} sleepNights={allSleep} />
+        <StabilityScores metrics={metrics} sleepNights={sleepNights} />
+        <SleepBank sleepNights={sleepNights} />
+      </div>
+
+      {/* Row 7: Behavior Journal + Monthly Recap */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <BehaviorJournal metrics={allMetrics} sleepNights={allSleep} />
+        <MonthlyRecap metrics={allMetrics} sleepNights={allSleep} />
+      </div>
+
+      {/* Row 8: Recovery Timeline */}
       <RecoveryTimeline
         rhrData={allMetrics.restingHeartRate || []}
         hrvData={allMetrics.hrv || []}

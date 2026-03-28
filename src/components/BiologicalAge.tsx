@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState, useEffect } from "react";
 import type { DailySummary, SleepNight } from "@/lib/parser/healthTypes";
 import { meanStd } from "@/lib/stats/zScore";
 import { trendRegression } from "@/lib/stats/regression";
@@ -9,6 +9,8 @@ interface Props {
   metrics: Record<string, DailySummary[]>;
   sleepNights: SleepNight[];
 }
+
+const AGE_STORAGE_KEY = "vitalstat-user-age";
 
 // Biological age estimation based on biomarkers
 // References:
@@ -20,6 +22,22 @@ interface Props {
 // - Sleep quality and aging (Mander 2017)
 
 export function BiologicalAge({ metrics, sleepNights }: Props) {
+  const [userAge, setUserAge] = useState<number | null>(null);
+  const [editingAge, setEditingAge] = useState(false);
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(AGE_STORAGE_KEY);
+      if (saved) setUserAge(Number(saved));
+    } catch {}
+  }, []);
+
+  const saveAge = (age: number) => {
+    setUserAge(age);
+    setEditingAge(false);
+    localStorage.setItem(AGE_STORAGE_KEY, String(age));
+  };
+
   const age = useMemo(() => {
     // We need at least RHR and HRV for a meaningful estimate
     const rhr = metrics.restingHeartRate;
@@ -86,10 +104,9 @@ export function BiologicalAge({ metrics, sleepNights }: Props) {
       else if (stepMean < 4000) activityOffset = 3;
     }
 
-    // We don't know chronological age, so we estimate a relative "biological age"
-    // based on how all biomarkers compare to population norms
-    // Base: 35 (median adult age for biomarker norms)
-    const baseAge = 35;
+    // Use actual chronological age if provided, otherwise can't compute
+    if (!userAge) return null;
+    const baseAge = userAge;
     const bioAge = Math.round(baseAge + rhrAgeOffset + hrvAgeOffset + vo2Offset + sleepOffset + walkOffset + activityOffset);
 
     // Pace of aging: are your biomarkers getting better or worse?
@@ -126,14 +143,50 @@ export function BiologicalAge({ metrics, sleepNights }: Props) {
     ].filter(Boolean) as string[];
 
     return { bioAge, color, paceOfAging, paceDetail, factors };
-  }, [metrics, sleepNights]);
+  }, [metrics, sleepNights, userAge]);
+
+  // Need user age first
+  if (!userAge) {
+    return (
+      <div className="glass p-4 animate-in">
+        <h3 className="text-xs font-semibold text-[var(--muted-strong)] mb-2">Varsta biologica estimata</h3>
+        <p className="text-[10px] text-[var(--muted)] mb-3">Introdu varsta ta cronologica pentru o estimare corecta:</p>
+        <div className="flex items-center gap-2">
+          <input
+            type="number" min={18} max={90} placeholder="ex: 32"
+            className="w-20 bg-transparent border border-[var(--glass-border)] rounded px-3 py-1.5 text-sm tabular-nums text-center"
+            onKeyDown={e => { if (e.key === "Enter") { const v = Number((e.target as HTMLInputElement).value); if (v >= 18 && v <= 90) saveAge(v); } }}
+          />
+          <span className="text-[10px] text-[var(--muted)]">ani</span>
+          <button
+            onClick={() => {
+              const input = document.querySelector('input[type="number"][min="18"]') as HTMLInputElement;
+              if (input) { const v = Number(input.value); if (v >= 18 && v <= 90) saveAge(v); }
+            }}
+            className="pill pill-active text-[10px]"
+          >Salveaza</button>
+        </div>
+      </div>
+    );
+  }
 
   if (!age) return null;
 
   return (
     <div className="glass p-4 animate-in">
       <div className="flex items-center justify-between mb-2">
-        <h3 className="text-xs font-semibold text-[var(--muted-strong)]">Varsta biologica estimata</h3>
+        <div className="flex items-center gap-2">
+          <h3 className="text-xs font-semibold text-[var(--muted-strong)]">Varsta biologica</h3>
+          <button onClick={() => setEditingAge(!editingAge)} className="text-[8px] text-[var(--muted)] hover:text-white">
+            (cronologica: {userAge} ani {editingAge ? "✕" : "✎"})
+          </button>
+          {editingAge && (
+            <input type="number" min={18} max={90} defaultValue={userAge}
+              className="w-12 bg-transparent border-b border-[var(--glass-border)] text-[10px] text-center"
+              onKeyDown={e => { if (e.key === "Enter") saveAge(Number((e.target as HTMLInputElement).value)); }}
+            />
+          )}
+        </div>
         <span className="text-[9px] px-2 py-0.5 rounded-full" style={{
           background: age.paceOfAging === "incetineste" ? "rgba(16,185,129,0.15)" : age.paceOfAging === "accelereaza" ? "rgba(239,68,68,0.15)" : "rgba(255,255,255,0.06)",
           color: age.paceOfAging === "incetineste" ? "#10b981" : age.paceOfAging === "accelereaza" ? "#ef4444" : "var(--muted)",
@@ -146,6 +199,13 @@ export function BiologicalAge({ metrics, sleepNights }: Props) {
         <div className="text-center">
           <span className="text-3xl font-bold tabular-nums" style={{ color: age.color }}>{age.bioAge}</span>
           <div className="text-[9px] text-[var(--muted)]">ani biologici</div>
+          {userAge && (
+            <div className="text-[10px] font-medium mt-0.5" style={{
+              color: age.bioAge < userAge ? "#10b981" : age.bioAge > userAge ? "#ef4444" : "var(--muted)"
+            }}>
+              {age.bioAge < userAge ? `${userAge - age.bioAge} ani mai tanar` : age.bioAge > userAge ? `${age.bioAge - userAge} ani mai batran` : "Egal cu varsta cronologica"}
+            </div>
+          )}
         </div>
         <div className="flex-1">
           <p className="text-[11px] text-[var(--muted-strong)] leading-relaxed">{age.paceDetail}</p>

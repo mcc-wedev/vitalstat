@@ -4,18 +4,24 @@ import { meanStd } from "./zScore";
 // ═══════════════════════════════════════════════════════════
 // RECOVERY SCORE v3
 //
+// IMPORTANT: Apple Watch reports HRV as SDNN (Standard Deviation of
+// NN intervals), NOT RMSSD. The ln() transform is valid for both
+// (Shaffer & Ginsberg 2017), and both benefit from log normalization
+// to reduce positive skewness. The literature references below use
+// RMSSD, but the math applies identically to SDNN.
+//
 // Evidence base:
-//   - ln(RMSSD) normalization: Buchheit 2014, Plews et al. 2013
+//   - ln(HRV) normalization: Buchheit 2014, Plews et al. 2013
+//   - SDNN log transform validity: Shaffer & Ginsberg 2017
 //   - ACWR injury risk model: Gabbett 2016, Hulin et al. 2014
 //   - Sleep architecture scoring: Walker 2017, Ohayon et al. 2017
-//   - Recovery Index (HR drop speed): Oura Ring methodology
 //   - Temperature deviation: WHOOP 5.0, Oura Gen3
 //   - Multi-night sleep balance: Oura Readiness (14-day weighted)
 //   - Normal CDF mapping: Kubios HRV readiness score
 //   - Previous day strain: WHOOP strain-recovery coupling
 //
 // Inputs (8 signals, graceful degradation):
-//   1. HRV — ln(RMSSD) z-score vs 28d baseline (dominant)
+//   1. HRV — ln(SDNN) z-score vs 28d baseline (dominant)
 //   2. RHR — z-score inverted vs 28d baseline
 //   3. Sleep — 6-component: efficiency, duration vs personal target,
 //              deep%, REM%, consistency 7d, 14-day sleep balance
@@ -123,16 +129,19 @@ export function calculateRecovery(
   const todaySleep = sleepHistory.find(d => d.date === targetDate);
 
   // ────────────────────────────────────────────────
-  // 1. HRV Score — ln(RMSSD) z-score
-  //    ln transform reduces skewness, standard in HRV research
-  //    (Buchheit 2014, Plews et al. 2013)
+  // 1. HRV Score — ln(SDNN) z-score
+  //    Apple Watch reports SDNN, not RMSSD.
+  //    ln() transform valid for both (Shaffer & Ginsberg 2017)
+  //    — reduces positive skewness, normalizes distribution.
+  //    Filter out zero/invalid values (< 5ms is physiologically impossible).
   // ────────────────────────────────────────────────
-  const hrvLn = hrvBefore.slice(-BASELINE).map(d => Math.log(Math.max(d.mean, 1)));
+  const hrvValid = hrvBefore.slice(-BASELINE).filter(d => d.mean >= 5); // <5ms = sensor error
+  const hrvLn = hrvValid.map(d => Math.log(d.mean));
   const { mean: lnMean, std: lnStd } = meanStd(hrvLn);
   let hrvScore = 50;
   let hrvAvailable = false;
-  if (todayHRV && lnStd > 0) {
-    const z = (Math.log(Math.max(todayHRV.mean, 1)) - lnMean) / lnStd;
+  if (todayHRV && todayHRV.mean >= 5 && lnStd > 0) {
+    const z = (Math.log(todayHRV.mean) - lnMean) / lnStd;
     hrvScore = zToScore(z);
     hrvAvailable = true;
   }
@@ -239,7 +248,9 @@ export function calculateRecovery(
   if (spo2History && spo2History.length >= 7) {
     const todaySpo2 = spo2History.find(d => d.date === targetDate);
     if (todaySpo2) {
-      const pct = todaySpo2.mean > 1 ? todaySpo2.mean : todaySpo2.mean * 100;
+      // Apple Health stores SpO2 as 0.0-1.0 (decimal) — convert to percentage
+      // Use >50 threshold to safely distinguish 0.97 from 97
+      const pct = todaySpo2.mean > 50 ? todaySpo2.mean : todaySpo2.mean * 100;
       spo2Score = pct >= 97 ? clamp(80 + (pct - 97) * 6.67, 80, 100)
         : pct >= 95 ? clamp(50 + (pct - 95) * 15, 50, 80)
         : clamp(pct * 0.53, 0, 50);
@@ -248,36 +259,33 @@ export function calculateRecovery(
   }
 
   // ────────────────────────────────────────────────
-  // 8. Wrist Temperature — deviation from baseline
-  //    (WHOOP 5.0, Oura Gen3: temp deviation correlates with
-  //     immune response, menstrual cycle, overtraining)
-  //    Apple Watch stores as deviation from baseline in °C
+  // 8. Wrist Temperature — Apple Watch already stores this as
+  //    DEVIATION from personal baseline (±°C). So we do NOT need
+  //    to calculate our own deviation. We score directly:
+  //    - Close to 0 (±0.2°C) = normal = high score
+  //    - Elevated (>0.5°C above baseline) = potential illness = penalize
+  //    - Very elevated (>1.0°C) = strong penalty
+  //    (WHOOP 5.0, Oura Gen3 use same approach)
   // ────────────────────────────────────────────────
   let tempScore = 70;
   let tempAvailable = false;
-  if (tempHistory && tempHistory.length >= MIN_DAYS) {
-    const tempBefore = tempHistory.filter(d => d.date < targetDate);
+  if (tempHistory && tempHistory.length >= 7) {
     const todayTemp = tempHistory.find(d => d.date === targetDate);
-    if (tempBefore.length >= MIN_DAYS && todayTemp) {
-      const { mean: tMean, std: tStd } = meanStd(tempBefore.slice(-BASELINE).map(d => d.mean));
-      if (tStd > 0) {
-        const z = (todayTemp.mean - tMean) / tStd;
-        // Elevated temp = potential illness/inflammation → penalize
-        // Slightly below baseline = normal variation → OK
-        // Scoring: close to baseline (z≈0) = best
-        //          elevated (z>1.5) = bad
-        //          very low (z<-2) = also concerning
-        const absZ = Math.abs(z);
-        tempScore = absZ <= 0.5 ? clamp(90 + (0.5 - absZ) * 20, 90, 100)
-          : absZ <= 1.0 ? clamp(90 - (absZ - 0.5) * 30, 75, 90)
-          : absZ <= 2.0 ? clamp(75 - (absZ - 1.0) * 35, 40, 75)
-          : clamp(40 - (absZ - 2.0) * 20, 10, 40);
+    if (todayTemp) {
+      // todayTemp.mean is already deviation from Apple's learned baseline (in °C)
+      const deviation = todayTemp.mean; // e.g., +0.3, -0.1, +0.8
 
-        // Extra penalty for ELEVATED temp (more concerning than low)
-        if (z > 1.5) tempScore = clamp(tempScore - 10, 5, tempScore);
+      // Score based on absolute deviation — close to 0 is best
+      const absDev = Math.abs(deviation);
+      tempScore = absDev <= 0.2 ? clamp(95 - absDev * 25, 90, 100)
+        : absDev <= 0.5 ? clamp(90 - (absDev - 0.2) * 50, 75, 90)
+        : absDev <= 1.0 ? clamp(75 - (absDev - 0.5) * 50, 50, 75)
+        : clamp(50 - (absDev - 1.0) * 30, 15, 50);
 
-        tempAvailable = true;
-      }
+      // Extra penalty for ELEVATED temp (illness signal, more concerning than low)
+      if (deviation > 0.5) tempScore = clamp(tempScore - 10, 10, tempScore);
+
+      tempAvailable = true;
     }
   }
 

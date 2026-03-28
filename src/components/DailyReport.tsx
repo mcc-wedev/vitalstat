@@ -97,11 +97,12 @@ export function DailyReport({ date, metrics, sleepNights }: DailyReportProps) {
       const sparkline = last7.map(d => d[field]);
       const todayIdx = sparkline.length - 1;
 
-      // Format value for SpO2
+      // Format value for SpO2 — Apple stores as 0.0-1.0, display as %
+      // Use >50 threshold (not >1) to safely distinguish formats
       let displayValue = value;
-      if (key === "oxygenSaturation" && value < 1) displayValue = value * 100;
+      if (key === "oxygenSaturation" && value <= 50) displayValue = value * 100;
       let displayBaseline = baseline;
-      if (key === "oxygenSaturation" && baseline < 1) displayBaseline = baseline * 100;
+      if (key === "oxygenSaturation" && baseline <= 50) displayBaseline = baseline * 100;
 
       result.push({
         key,

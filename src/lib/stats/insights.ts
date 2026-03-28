@@ -175,7 +175,11 @@ function illnessDetection(metrics: Record<string, DailySummary[]>): Insight[] {
   const hrvZ = hrvStd > 0 ? (hrv[hrv.length - 1].mean - hrvAvg) / hrvStd : 0;
 
   let spo2Low = false;
-  if (metrics.oxygenSaturation?.length > 0) spo2Low = metrics.oxygenSaturation[metrics.oxygenSaturation.length - 1].mean * 100 < 95;
+  if (metrics.oxygenSaturation?.length > 0) {
+    const raw = metrics.oxygenSaturation[metrics.oxygenSaturation.length - 1].mean;
+    const spo2Pct = raw > 50 ? raw : raw * 100; // Apple stores as 0.0-1.0
+    spo2Low = spo2Pct < 95;
+  }
 
   let respHigh = false;
   if (metrics.respiratoryRate?.length > 7) {
@@ -505,7 +509,7 @@ function hrvInsights(data: DailySummary[]): Insight[] {
 
 function spo2Insights(data: DailySummary[]): Insight[] {
   const today = data[data.length - 1].mean;
-  const pct = today > 1 ? today : today * 100; // handle both 0.97 and 97 formats
+  const pct = today > 50 ? today : today * 100; // Apple stores 0.0-1.0, use >50 to distinguish
 
   if (pct < 94) {
     return [{ id: "spo2-low", severity: "alert", category: "cardio", metric: "oxygenSaturation",

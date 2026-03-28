@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import type { DailySummary, SleepNight, DataMeta, MetricCategory } from "@/lib/parser/healthTypes";
 
-export type DatePreset = "7d" | "30d" | "90d" | "6m" | "1y" | "all";
+export type DatePreset = "today" | "yesterday" | "7d" | "14d" | "30d" | "90d" | "6m" | "1y" | "all";
 
 interface HealthState {
   isLoading: boolean;
@@ -31,7 +31,7 @@ export const useHealthStore = create<HealthState>((set) => ({
   sleepNights: [],
   meta: null,
   activeTab: "overview",
-  datePreset: "90d",
+  datePreset: "30d",
   customRange: null,
 
   setLoading: (loading) => set({ isLoading: loading }),
@@ -56,7 +56,16 @@ export function getDateBounds(preset: DatePreset, meta: DataMeta | null): { star
   let startDate: Date;
 
   switch (preset) {
+    case "today": {
+      const today = new Date().toISOString().substring(0, 10);
+      return { start: today, end: today };
+    }
+    case "yesterday": {
+      const y = new Date(Date.now() - 86400000).toISOString().substring(0, 10);
+      return { start: y, end: y };
+    }
     case "7d":  startDate = new Date(endDate.getTime() - 7 * 86400000); break;
+    case "14d": startDate = new Date(endDate.getTime() - 14 * 86400000); break;
     case "30d": startDate = new Date(endDate.getTime() - 30 * 86400000); break;
     case "90d": startDate = new Date(endDate.getTime() - 90 * 86400000); break;
     case "6m":  startDate = new Date(endDate.getTime() - 182 * 86400000); break;

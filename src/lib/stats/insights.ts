@@ -2,6 +2,7 @@ import type { DailySummary, SleepNight } from "../parser/healthTypes";
 import { METRIC_CONFIG, getDisplayValue } from "../parser/healthTypes";
 import { meanStd } from "./zScore";
 import { pearson, pearsonPValue } from "./correlation";
+import { trendRegression } from "./regression";
 
 export type InsightSeverity = "good" | "warning" | "alert" | "info";
 
@@ -14,6 +15,10 @@ export interface Insight {
   metric?: string;
 }
 
+// Helper: safe last N
+function lastN<T>(arr: T[], n: number): T[] { return arr.slice(-n); }
+function vals(data: DailySummary[], field: "mean" | "sum" = "mean"): number[] { return data.map(d => d[field]); }
+
 // ═══════════════════════════════════════════════════════════
 // MAIN GENERATOR
 // ═══════════════════════════════════════════════════════════
@@ -24,56 +29,59 @@ export function generateInsights(
 ): Insight[] {
   const out: Insight[] = [];
 
-  // Daily recommendation (always first)
+  // ── Recovery & daily ──
   out.push(...dailyRecommendation(metrics, sleepNights));
-
-  // Score driver
   out.push(...scoreDriver(metrics, sleepNights));
+  out.push(...illnessDetection(metrics));
 
-  // Strain score
+  // ── Training load ──
   out.push(...strainInsights(metrics));
+  out.push(...trainingBalance(metrics));
 
-  // Sleep debt
+  // ── Sleep deep analysis ──
   out.push(...sleepDebtInsights(sleepNights));
+  if (sleepNights.length >= 7) out.push(...sleepInsights(sleepNights));
+  out.push(...sleepConsistency(sleepNights));
+  out.push(...socialJetLag(sleepNights));
+  out.push(...sleepStagesTrend(sleepNights));
 
-  // Cardio
+  // ── Cardiovascular ──
   if (metrics.restingHeartRate?.length >= 14) out.push(...rhrInsights(metrics.restingHeartRate));
   if (metrics.hrv?.length >= 14) out.push(...hrvInsights(metrics.hrv));
   if (metrics.oxygenSaturation?.length >= 7) out.push(...spo2Insights(metrics.oxygenSaturation));
   if (metrics.vo2Max?.length >= 7) out.push(...vo2Insights(metrics.vo2Max));
+  out.push(...bloodPressureInsights(metrics));
+  out.push(...respiratoryInsights(metrics));
 
-  // Sleep
-  if (sleepNights.length >= 7) out.push(...sleepInsights(sleepNights));
-
-  // Activity
+  // ── Activity ──
   out.push(...activityInsights(metrics));
+  out.push(...exerciseEfficiency(metrics));
 
-  // Mobility
+  // ── Mobility ──
   out.push(...mobilityInsights(metrics));
 
-  // Audio
+  // ── Body composition ──
+  out.push(...bodyInsights(metrics));
+
+  // ── Audio & wellbeing ──
   out.push(...audioInsights(metrics));
+  out.push(...wellbeingInsights(metrics));
 
-  // Illness detection
-  out.push(...illnessDetection(metrics));
-
-  // Patterns
+  // ── Patterns & correlations ──
   out.push(...patternDetection(metrics, sleepNights));
-
-  // Day-of-week
   out.push(...dayOfWeekAnalysis(metrics, sleepNights));
-
-  // Correlations
   out.push(...correlationInsights(metrics, sleepNights));
-
-  // Weekly comparison
   out.push(...weeklyComparison(metrics, sleepNights));
+  out.push(...monthlyTrend(metrics, sleepNights));
+
+  // ── Personalized records ──
+  out.push(...personalRecords(metrics, sleepNights));
 
   return out;
 }
 
 // ═══════════════════════════════════════════════════════════
-// DAILY RECOMMENDATION — what to do today
+// DAILY RECOMMENDATION
 // ═══════════════════════════════════════════════════════════
 
 function dailyRecommendation(metrics: Record<string, DailySummary[]>, sleepNights: SleepNight[]): Insight[] {
@@ -81,44 +89,46 @@ function dailyRecommendation(metrics: Record<string, DailySummary[]>, sleepNight
   const hrv = metrics.hrv;
   if (!rhr || rhr.length < 14 || !hrv || hrv.length < 14) return [];
 
-  const { mean: rhrAvg, std: rhrStd } = meanStd(rhr.slice(-30).map(d => d.mean));
-  const { mean: hrvAvg, std: hrvStd } = meanStd(hrv.slice(-30).map(d => d.mean));
+  const { mean: rhrAvg, std: rhrStd } = meanStd(vals(lastN(rhr, 30)));
+  const { mean: hrvAvg, std: hrvStd } = meanStd(vals(lastN(hrv, 30)));
   const rhrToday = rhr[rhr.length - 1].mean;
   const hrvToday = hrv[hrv.length - 1].mean;
   const rhrZ = rhrStd > 0 ? (rhrToday - rhrAvg) / rhrStd : 0;
   const hrvZ = hrvStd > 0 ? (hrvToday - hrvAvg) / hrvStd : 0;
 
-  // Sleep last night
   const lastSleep = sleepNights.length > 0 ? sleepNights[sleepNights.length - 1] : null;
   const sleptWell = lastSleep ? lastSleep.totalMinutes >= 420 && lastSleep.efficiency >= 0.85 : true;
-
-  let title = "";
-  let body = "";
-  let severity: InsightSeverity = "info";
+  const sleepHours = lastSleep ? (lastSleep.totalMinutes / 60).toFixed(1) : "?";
 
   if (rhrZ > 1.5 && hrvZ < -1.5) {
-    title = "Azi: odihna completa";
-    body = "Corpul tau arata semne clare de oboseala — pulsul e ridicat si HRV-ul e scazut. Cel mai bun lucru pe care il poti face azi e sa te odihnesti, sa bei multa apa si sa dormi devreme.";
-    severity = "alert";
-  } else if (hrvZ < -1 || rhrZ > 1 || !sleptWell) {
-    title = "Azi: ia-o usor";
-    body = `Recuperarea ta nu e completa${!sleptWell ? " si ai dormit mai putin decat ai nevoie" : ""}. O plimbare usoara sau stretching sunt ok, dar evita antrenamentul intens. Maine va fi mai bine daca te odihnesti azi.`;
-    severity = "warning";
-  } else if (hrvZ > 1 && rhrZ < -0.5 && sleptWell) {
-    title = "Azi: zi perfecta pentru antrenament intens";
-    body = "Toate semnele sunt verzi — HRV peste medie, puls in repaus scazut, somn bun. Corpul tau e gata pentru efort maxim. Profita de ziua asta!";
-    severity = "good";
-  } else {
-    title = "Azi: antrenament moderat";
-    body = "Valorile tale sunt in zona normala. Poti face antrenament moderat — cardio, forta, sau sport. Asculta-ti corpul si nu forta peste limita.";
-    severity = "good";
+    return [{ id: "daily-rec", severity: "alert", category: "recovery",
+      title: "Recomandare: odihna completa",
+      body: `Pulsul tau e cu ${(rhrToday - rhrAvg).toFixed(0)} bpm peste normal (${rhrToday.toFixed(0)} vs ${rhrAvg.toFixed(0)} bpm), iar HRV-ul e cu ${(hrvAvg - hrvToday).toFixed(0)} ms sub media ta. Aceasta combinatie indica stres fiziologic semnificativ. Evita efortul fizic, hidrateaza-te bine si culca-te cu cel putin 1 ora mai devreme.` }];
   }
 
-  return [{ id: "daily-rec", title, body, severity, category: "recovery" }];
+  if (hrvZ < -1 || rhrZ > 1 || !sleptWell) {
+    const reasons: string[] = [];
+    if (hrvZ < -1) reasons.push(`HRV sub medie (${hrvToday.toFixed(0)} vs ${hrvAvg.toFixed(0)} ms)`);
+    if (rhrZ > 1) reasons.push(`puls ridicat (${rhrToday.toFixed(0)} vs ${rhrAvg.toFixed(0)} bpm)`);
+    if (!sleptWell) reasons.push(`somn insuficient (${sleepHours}h)`);
+    return [{ id: "daily-rec", severity: "warning", category: "recovery",
+      title: "Recomandare: zi usoara",
+      body: `Corpul nu e complet recuperat: ${reasons.join(", ")}. O plimbare sau stretching sunt ok, dar evita antrenamentul intens. Prioritizeaza somnul azi noapte.` }];
+  }
+
+  if (hrvZ > 1 && rhrZ < -0.5 && sleptWell) {
+    return [{ id: "daily-rec", severity: "good", category: "recovery",
+      title: "Zi ideala pentru performanta",
+      body: `HRV e cu ${(hrvToday - hrvAvg).toFixed(0)} ms peste medie, pulsul e scazut la ${rhrToday.toFixed(0)} bpm, ai dormit ${sleepHours}h. Toate semnalele indica recuperare excelenta — profita de aceasta zi pentru un antrenament intens sau provocator.` }];
+  }
+
+  return [{ id: "daily-rec", severity: "good", category: "recovery",
+    title: "Totul normal — antrenament moderat",
+    body: `Valorile sunt in zona bazala (RHR ${rhrToday.toFixed(0)} bpm, HRV ${hrvToday.toFixed(0)} ms). Poti face orice tip de activitate la intensitate moderata.` }];
 }
 
 // ═══════════════════════════════════════════════════════════
-// SCORE DRIVER — what's affecting your recovery most
+// SCORE DRIVER
 // ═══════════════════════════════════════════════════════════
 
 function scoreDriver(metrics: Record<string, DailySummary[]>, sleepNights: SleepNight[]): Insight[] {
@@ -126,36 +136,72 @@ function scoreDriver(metrics: Record<string, DailySummary[]>, sleepNights: Sleep
   const hrv = metrics.hrv;
   if (!rhr || rhr.length < 14 || !hrv || hrv.length < 14) return [];
 
-  const { mean: rhrAvg, std: rhrStd } = meanStd(rhr.slice(-30).map(d => d.mean));
-  const { mean: hrvAvg, std: hrvStd } = meanStd(hrv.slice(-30).map(d => d.mean));
+  const { mean: rhrAvg, std: rhrStd } = meanStd(vals(lastN(rhr, 30)));
+  const { mean: hrvAvg, std: hrvStd } = meanStd(vals(lastN(hrv, 30)));
   const rhrZ = rhrStd > 0 ? (rhr[rhr.length - 1].mean - rhrAvg) / rhrStd : 0;
   const hrvZ = hrvStd > 0 ? (hrv[hrv.length - 1].mean - hrvAvg) / hrvStd : 0;
-
   const lastSleep = sleepNights.length > 0 ? sleepNights[sleepNights.length - 1] : null;
   const sleepHours = lastSleep ? lastSleep.totalMinutes / 60 : 7;
-  const sleepIssue = sleepHours < 6.5;
 
-  // Find the weakest link
   const factors = [
-    { name: "HRV-ul", impact: -hrvZ, issue: hrvZ < -1, detail: `HRV-ul tau e sub medie (${hrv[hrv.length-1].mean.toFixed(0)} ms vs ${hrvAvg.toFixed(0)} ms normal)` },
-    { name: "Pulsul in repaus", impact: rhrZ, issue: rhrZ > 1, detail: `Pulsul e mai ridicat decat de obicei (${rhr[rhr.length-1].mean.toFixed(0)} bpm vs ${rhrAvg.toFixed(0)} bpm normal)` },
-    { name: "Somnul", impact: sleepIssue ? 2 : 0, issue: sleepIssue, detail: `Ai dormit doar ${sleepHours.toFixed(1)}h — sub cele 7h recomandate` },
+    { name: "HRV-ul", impact: -hrvZ, issue: hrvZ < -1,
+      detail: `HRV ${hrv[hrv.length-1].mean.toFixed(0)} ms (media ta: ${hrvAvg.toFixed(0)} ms, deviatia: ${(hrvZ).toFixed(1)}σ)` },
+    { name: "Pulsul in repaus", impact: rhrZ, issue: rhrZ > 1,
+      detail: `RHR ${rhr[rhr.length-1].mean.toFixed(0)} bpm (media ta: ${rhrAvg.toFixed(0)} bpm, deviatia: +${rhrZ.toFixed(1)}σ)` },
+    { name: "Somnul", impact: sleepHours < 6.5 ? 2 : 0, issue: sleepHours < 6.5,
+      detail: `Ai dormit ${sleepHours.toFixed(1)}h — ${(7 - sleepHours).toFixed(1)}h sub minimul de 7h` },
   ].sort((a, b) => b.impact - a.impact);
 
   const worst = factors.find(f => f.issue);
   if (!worst) return [];
 
-  return [{
-    id: "score-driver",
-    title: `Ce iti afecteaza recuperarea: ${worst.name}`,
-    body: `${worst.detail}. Acesta e factorul principal care iti trage scorul in jos azi. Concentreaza-te pe imbunatatirea lui.`,
-    severity: "info",
-    category: "recovery",
-  }];
+  return [{ id: "score-driver", severity: "info", category: "recovery",
+    title: `Factor principal care limiteaza recuperarea: ${worst.name}`,
+    body: `${worst.detail}. Asta e cel mai mare obstacol din datele tale de azi. Restu indicatorilor sunt in parametri.` }];
 }
 
 // ═══════════════════════════════════════════════════════════
-// STRAIN SCORE
+// ILLNESS DETECTION (multi-signal)
+// ═══════════════════════════════════════════════════════════
+
+function illnessDetection(metrics: Record<string, DailySummary[]>): Insight[] {
+  const rhr = metrics.restingHeartRate;
+  const hrv = metrics.hrv;
+  if (!rhr || rhr.length < 30 || !hrv || hrv.length < 30) return [];
+
+  const { mean: rhrAvg, std: rhrStd } = meanStd(vals(lastN(rhr, 30)));
+  const { mean: hrvAvg, std: hrvStd } = meanStd(vals(lastN(hrv, 30)));
+  const rhrZ = rhrStd > 0 ? (rhr[rhr.length - 1].mean - rhrAvg) / rhrStd : 0;
+  const hrvZ = hrvStd > 0 ? (hrv[hrv.length - 1].mean - hrvAvg) / hrvStd : 0;
+
+  let spo2Low = false;
+  if (metrics.oxygenSaturation?.length > 0) spo2Low = metrics.oxygenSaturation[metrics.oxygenSaturation.length - 1].mean * 100 < 95;
+
+  let respHigh = false;
+  if (metrics.respiratoryRate?.length > 7) {
+    const { mean: rAvg, std: rStd } = meanStd(vals(lastN(metrics.respiratoryRate, 30)));
+    const rToday = metrics.respiratoryRate[metrics.respiratoryRate.length - 1].mean;
+    respHigh = rStd > 0 ? (rToday - rAvg) / rStd > 1.5 : false;
+  }
+
+  const flags = [rhrZ > 1.5, hrvZ < -1.5, spo2Low, respHigh].filter(Boolean).length;
+
+  if (flags >= 2) {
+    const signals: string[] = [];
+    if (rhrZ > 1.5) signals.push(`puls crescut (+${(rhrZ).toFixed(1)}σ)`);
+    if (hrvZ < -1.5) signals.push(`HRV scazut (${(hrvZ).toFixed(1)}σ)`);
+    if (spo2Low) signals.push("SpO2 sub 95%");
+    if (respHigh) signals.push("ritm respirator crescut");
+
+    return [{ id: "illness", severity: "alert", category: "recovery",
+      title: "Semnal de alarma: posibila boala sau suprasolicitare extrema",
+      body: `${signals.length} indicatori sunt simultan in zona rosie: ${signals.join(", ")}. Acest tipar precede de obicei simptomele cu 24-48h. Recomandare imediata: anuleaza orice antrenament, hidrateaza-te abundent, dormi 9+ ore. Daca simptomele persista 3+ zile, consulta un medic.` }];
+  }
+  return [];
+}
+
+// ═══════════════════════════════════════════════════════════
+// STRAIN & TRAINING BALANCE
 // ═══════════════════════════════════════════════════════════
 
 function strainInsights(metrics: Record<string, DailySummary[]>): Insight[] {
@@ -165,49 +211,498 @@ function strainInsights(metrics: Record<string, DailySummary[]>): Insight[] {
   const steps = metrics.stepCount;
   if (!ex || ex.length < 7) return out;
 
-  // Simple strain: exercise minutes + active calories normalized
-  const last7 = ex.slice(-7);
-  const prev7 = ex.slice(-14, -7);
-  const todayEx = last7[last7.length - 1].sum;
+  const todayEx = ex[ex.length - 1].sum;
   const todayCal = active ? active[active.length - 1]?.sum || 0 : 0;
   const todaySteps = steps ? steps[steps.length - 1]?.sum || 0 : 0;
 
-  // Strain 0-21 (like WHOOP): based on exercise + activity
   const strain = Math.min(21, Math.round(
-    (todayEx / 60) * 7 +  // 1h exercise = 7 strain
-    (todayCal / 500) * 3 + // 500 cal = 3 strain
-    (todaySteps / 10000) * 2 // 10k steps = 2 strain
+    (todayEx / 60) * 7 + (todayCal / 500) * 3 + (todaySteps / 10000) * 2
   ));
 
-  const strainLabel = strain >= 18 ? "Maximal" : strain >= 14 ? "Ridicat" : strain >= 10 ? "Moderat" : strain >= 5 ? "Usor" : "Minim";
+  const level = strain >= 18 ? "maximal" : strain >= 14 ? "ridicat" : strain >= 10 ? "moderat" : strain >= 5 ? "usor" : "minim";
 
-  out.push({
-    id: "strain-today",
-    title: `Efort azi: ${strain}/21 — ${strainLabel}`,
-    body: strain >= 14
-      ? `Ai avut o zi foarte intensa (${todayEx.toFixed(0)} min exercitiu, ${todayCal.toFixed(0)} kcal arse). Corpul tau va avea nevoie de recuperare buna — prioritizeaza somnul azi noapte.`
-      : strain >= 8
-        ? `Nivel de efort moderat azi (${todayEx.toFixed(0)} min exercitiu). Un echilibru bun intre activitate si recuperare.`
-        : `Zi cu efort redus (${todayEx.toFixed(0)} min exercitiu). Daca te simti bine, maine ar fi o zi buna pentru un antrenament mai intens.`,
-    severity: strain >= 18 ? "warning" : "info",
-    category: "activity",
-  });
+  let advice = "";
+  if (strain >= 18) advice = "Efort la limita — asigura-te ca dormi 8+ ore si consumi suficiente proteine si carbohidrati pentru recuperare.";
+  else if (strain >= 14) advice = "Zi intensa. Urmatoarele 24-48h sunt critice pentru recuperare. Evita alt antrenament intens maine.";
+  else if (strain >= 8) advice = "Nivel de efort echilibrat. Poti repeta maine daca ai dormit bine.";
+  else advice = "Activitate scazuta. Daca nu e zi de odihna planificata, o sesiune moderata ar ajuta la mentinerea formei.";
 
-  // 7-day strain load
+  out.push({ id: "strain-today", severity: strain >= 18 ? "warning" : "info", category: "activity",
+    title: `Efort azi: ${strain}/21 (${level})`,
+    body: `${todayEx.toFixed(0)} min exercitiu, ${todayCal.toFixed(0)} kcal arse activ, ${todaySteps.toLocaleString()} pasi. ${advice}` });
+
+  // Week-over-week spike detection
+  const last7 = ex.slice(-7);
+  const prev7 = ex.slice(-14, -7);
   if (prev7.length >= 5) {
     const weekStrain = last7.reduce((s, d) => s + d.sum, 0);
     const prevWeekStrain = prev7.reduce((s, d) => s + d.sum, 0);
     if (prevWeekStrain > 0) {
       const ratio = weekStrain / prevWeekStrain;
       if (ratio > 1.3) {
-        out.push({
-          id: "strain-spike",
-          title: "Ai crescut efortul prea repede",
-          body: `Volumul de exercitiu din aceasta saptamana e cu ${((ratio - 1) * 100).toFixed(0)}% mai mare decat saptamana trecuta. Regula de aur: nu creste volumul cu mai mult de 10% pe saptamana, altfel creste riscul de accidentare.`,
-          severity: "warning",
-          category: "activity",
-        });
+        out.push({ id: "strain-spike", severity: "warning", category: "activity",
+          title: `Volumul de antrenament a crescut cu ${((ratio - 1) * 100).toFixed(0)}% fata de saptamana trecuta`,
+          body: `${weekStrain.toFixed(0)} min vs ${prevWeekStrain.toFixed(0)} min saptamana trecuta. Regula 10%: cresterea volumului cu mai mult de 10%/saptamana este cel mai frecvent factor de accidentare la sportivi amatori. Redu intensitatea in urmatoarele zile.` });
       }
+    }
+  }
+  return out;
+}
+
+function trainingBalance(metrics: Record<string, DailySummary[]>): Insight[] {
+  const ex = metrics.exerciseTime;
+  if (!ex || ex.length < 42) return [];
+
+  // Banister model: Acute (7d) vs Chronic (42d) Training Load
+  const acute = lastN(ex, 7).reduce((s, d) => s + d.sum, 0) / 7;
+  const chronic = lastN(ex, 42).reduce((s, d) => s + d.sum, 0) / 42;
+  const ratio = chronic > 0 ? acute / chronic : 1;
+
+  if (ratio > 1.5) {
+    return [{ id: "acr-high", severity: "alert", category: "activity",
+      title: `Raport efort acut/cronic: ${ratio.toFixed(2)} — zona de risc`,
+      body: `Efortul din ultima saptamana (${acute.toFixed(0)} min/zi) e cu ${((ratio - 1) * 100).toFixed(0)}% peste ce ai facut in ultimele 6 saptamani (${chronic.toFixed(0)} min/zi). Un raport peste 1.5 este asociat cu risc crescut de accidentare. Redu volumul la ~${(chronic * 1.1).toFixed(0)} min/zi in urmatoarele zile.` }];
+  }
+
+  if (ratio < 0.6 && chronic > 15) {
+    return [{ id: "acr-low", severity: "info", category: "activity",
+      title: "Detraining detectat",
+      body: `Efortul recent (${acute.toFixed(0)} min/zi) e mult sub nivelul tau obisnuit (${chronic.toFixed(0)} min/zi). Daca nu e intentionat (accidentare, vacanta), risc de pierdere a formei. Revino treptat.` }];
+  }
+
+  return [];
+}
+
+// ═══════════════════════════════════════════════════════════
+// SLEEP — debt, consistency, jet lag, stages
+// ═══════════════════════════════════════════════════════════
+
+function sleepDebtInsights(sleepNights: SleepNight[]): Insight[] {
+  if (sleepNights.length < 7) return [];
+  const last7 = lastN(sleepNights, 7);
+  const TARGET = 8;
+
+  let debt = 0;
+  for (const night of last7) debt += TARGET - night.totalMinutes / 60;
+
+  const debtH = Math.max(0, debt);
+  const creditH = Math.max(0, -debt);
+  const avgH = last7.reduce((s, n) => s + n.totalMinutes, 0) / last7.length / 60;
+
+  if (debtH > 5) {
+    return [{ id: "sleep-debt", severity: "alert", category: "sleep",
+      title: `Datorie de somn critica: ${debtH.toFixed(1)} ore`,
+      body: `In 7 zile ai dormit in medie ${avgH.toFixed(1)}h/noapte — cu ${(TARGET - avgH).toFixed(1)}h sub tinta de ${TARGET}h. Datoria de somn nu se recupereaza dormind o noapte lunga — ai nevoie de 3-4 nopti consecutive de 9+ ore. Somnul insuficient cronic afecteaza: imunitate (-40%), timp de reactie, reglare emotionala, si crestere in greutate.` }];
+  }
+  if (debtH > 2) {
+    return [{ id: "sleep-debt", severity: "warning", category: "sleep",
+      title: `Deficit moderat de somn: ${debtH.toFixed(1)} ore`,
+      body: `Media ultimelor 7 nopti: ${avgH.toFixed(1)}h. Adauga 30-45 minute la fiecare noapte urmatoare — cel mai simplu mod e sa pui un alarm de culcare.` }];
+  }
+  if (creditH > 3) {
+    return [{ id: "sleep-credit", severity: "good", category: "sleep",
+      title: "Somn excelent saptamana asta",
+      body: `Media: ${avgH.toFixed(1)}h/noapte, cu ${creditH.toFixed(1)}h in plus fata de minimul de ${TARGET}h. Acest surplus se traduce direct in recuperare mai buna, concentrare superioara si sistem imunitar puternic.` }];
+  }
+  return [];
+}
+
+function sleepInsights(nights: SleepNight[]): Insight[] {
+  const out: Insight[] = [];
+  const last7 = lastN(nights, 7);
+  const durations = last7.map(n => n.totalMinutes / 60);
+  const { mean: avg } = meanStd(durations);
+  const totalMin = last7.reduce((s, n) => s + n.totalMinutes, 0);
+  const deepPct = totalMin > 0 ? (last7.reduce((s, n) => s + n.stages.deep, 0) / totalMin) * 100 : 0;
+  const remPct = totalMin > 0 ? (last7.reduce((s, n) => s + n.stages.rem, 0) / totalMin) * 100 : 0;
+  const efficiencies = last7.map(n => n.efficiency * 100);
+  const { mean: avgEff } = meanStd(efficiencies);
+
+  if (avg < 6) {
+    out.push({ id: "sleep-short", severity: "alert", category: "sleep",
+      title: `Dormi prea putin: ${avg.toFixed(1)}h/noapte`,
+      body: `Sub 6 ore creste riscul cardiovascular cu 48% (meta-analiza Cappuccio 2010, 470,000 participanti). Afecteaza si: memoria de lucru (-30%), reglarea glucozei (rezistenta la insulina dupa doar 4 nopti), si productia de hormoni de crestere. Prioritatea #1 e sa ajungi la 7h.` });
+  } else if (avg < 7) {
+    out.push({ id: "sleep-below", severity: "warning", category: "sleep",
+      title: `Somn sub optim: ${avg.toFixed(1)}h`,
+      body: `Esti in zona gri — nu critic, dar sub cele 7-9h recomandate de American Academy of Sleep Medicine. Chiar +30 min/noapte imbunatateste vizibil HRV-ul si concentrarea.` });
+  }
+
+  if (deepPct > 0 && deepPct < 10) {
+    out.push({ id: "deep-low", severity: "warning", category: "sleep",
+      title: `Somn profund insuficient: ${deepPct.toFixed(0)}% (ideal: 15-20%)`,
+      body: `Somnul profund (deep/NREM3) e faza in care corpul repara tesuturi, consolideaza memoria si elibereaza hormon de crestere. Factori care il reduc: alcool (chiar si 1 pahar), temperatura camerei >22°C, cafeina dupa ora 14, ecrane in ultimele 60 min. Cel mai eficient interventie: exercitiu fizic dimineata.` });
+  }
+
+  if (remPct > 0 && remPct < 15) {
+    out.push({ id: "rem-low", severity: "warning", category: "sleep",
+      title: `REM insuficient: ${remPct.toFixed(0)}% (ideal: 20-25%)`,
+      body: `REM-ul proceseaza emotiile si consolideaza invatarea procedurala. REM-ul are loc predominant in a doua jumatate a noptii — daca te trezesti devreme, pierzi disproportionat din REM. Alcoolul e cel mai puternic supresor de REM (reduce cu pana la 50%).` });
+  }
+
+  if (avgEff < 80 && avgEff > 0) {
+    out.push({ id: "eff-low", severity: "warning", category: "sleep",
+      title: `Eficienta somnului scazuta: ${avgEff.toFixed(0)}%`,
+      body: `Petreci ${((1 - avgEff / 100) * avg * 60).toFixed(0)} minute/noapte treaz in pat. Terapia cognitiv-comportamentala pentru insomnie (CBT-I) recomanda: mergi in pat DOAR cand esti somnoros, daca nu adormi in 20 min ridica-te, si nu folosi patul pentru altceva decat somn.` });
+  }
+
+  return out;
+}
+
+function sleepConsistency(nights: SleepNight[]): Insight[] {
+  if (nights.length < 14) return [];
+  const last14 = lastN(nights, 14);
+
+  // Sleep midpoint consistency (circadian regularity)
+  const midpoints = last14.map(n => {
+    const bed = new Date(n.bedtime).getTime();
+    return (bed + n.totalMinutes * 30000) / 3600000 % 24; // midpoint hour
+  });
+
+  const { std: midStd } = meanStd(midpoints);
+
+  if (midStd > 1.5) {
+    return [{ id: "sleep-irregular", severity: "warning", category: "sleep",
+      title: "Program de somn neregulat",
+      body: `Ora medie de somn variaza cu ±${(midStd * 60).toFixed(0)} minute. Un studiu Harvard (2017) pe 61,000 participanti a aratat ca inconsistenta somnului creste riscul cardiovascular independent de durata. Incearca sa te culci si sa te trezesti la aceeasi ora (±30 min) inclusiv in weekend.` }];
+  }
+
+  return [];
+}
+
+function socialJetLag(nights: SleepNight[]): Insight[] {
+  if (nights.length < 28) return [];
+
+  const weekday: number[] = [], weekend: number[] = [];
+  for (const n of lastN(nights, 28)) {
+    const dow = new Date(n.date).getDay();
+    const bedHour = new Date(n.bedtime).getHours() + new Date(n.bedtime).getMinutes() / 60;
+    const midpoint = bedHour + (n.totalMinutes / 60) / 2;
+    if (dow === 0 || dow === 5 || dow === 6) weekend.push(midpoint);
+    else weekday.push(midpoint);
+  }
+
+  if (weekday.length < 8 || weekend.length < 4) return [];
+  const { mean: wkAvg } = meanStd(weekday);
+  const { mean: weAvg } = meanStd(weekend);
+  const diff = Math.abs(weAvg - wkAvg);
+
+  if (diff > 1) {
+    return [{ id: "social-jetlag", severity: "warning", category: "sleep",
+      title: `Social jet lag: ${diff.toFixed(1)} ore`,
+      body: `Diferenta intre programul de somn din weekend si cel din cursul saptamanii e de ${(diff * 60).toFixed(0)} minute. Echivalent cu a calatori ${diff.toFixed(1)} fusuri orare in fiecare weekend. Social jet lag >1h e asociat cu risc metabolic crescut, obezitate si depresie (Wittmann et al., 2006). Solutie: trezeste-te la aceeasi ora si sambata/duminica.` }];
+  }
+
+  return [];
+}
+
+function sleepStagesTrend(nights: SleepNight[]): Insight[] {
+  if (nights.length < 30) return [];
+  const first15 = nights.slice(-30, -15);
+  const last15 = lastN(nights, 15);
+
+  const deepFirst = first15.reduce((s, n) => s + n.stages.deep, 0) / first15.reduce((s, n) => s + n.totalMinutes, 0) * 100;
+  const deepLast = last15.reduce((s, n) => s + n.stages.deep, 0) / last15.reduce((s, n) => s + n.totalMinutes, 0) * 100;
+
+  const diff = deepLast - deepFirst;
+  if (Math.abs(diff) > 3 && deepFirst > 0) {
+    return [{ id: "deep-trend", severity: diff > 0 ? "good" : "warning", category: "sleep",
+      title: diff > 0
+        ? `Somnul profund s-a imbunatatit: +${diff.toFixed(1)}pp`
+        : `Somnul profund scade: ${diff.toFixed(1)}pp`,
+      body: diff > 0
+        ? `Proportia de somn profund a crescut de la ${deepFirst.toFixed(0)}% la ${deepLast.toFixed(0)}%. Asta inseamna o recuperare fizica mai buna si un sistem imunitar mai puternic.`
+        : `Proportia de somn profund a scazut de la ${deepFirst.toFixed(0)}% la ${deepLast.toFixed(0)}%. Verificeaza: nivel de stres, consum de alcool, temperatura camerei, activitate fizica.` }];
+  }
+  return [];
+}
+
+// ═══════════════════════════════════════════════════════════
+// CARDIOVASCULAR
+// ═══════════════════════════════════════════════════════════
+
+function rhrInsights(data: DailySummary[]): Insight[] {
+  const out: Insight[] = [];
+  const today = data[data.length - 1].mean;
+  const last30 = vals(lastN(data, 30));
+  const prev30 = data.length >= 60 ? vals(data.slice(-60, -30)) : [];
+  const { mean: avg30, std: std30 } = meanStd(last30);
+  const z = std30 > 0 ? (today - avg30) / std30 : 0;
+
+  if (z > 2) {
+    out.push({ id: "rhr-high", severity: "alert", category: "cardio", metric: "restingHeartRate",
+      title: `Puls in repaus anormal: ${today.toFixed(0)} bpm (+${(z).toFixed(1)}σ)`,
+      body: `Asta e o deviere semnificativa de la media ta de ${avg30.toFixed(0)} bpm. Cauze posibile: deshidratare, stres emotional, alcool consumat ieri, incubatie de boala, sau overtraining. Daca nu exista o cauza evidenta si persista 3+ zile, discuta cu medicul.` });
+  } else if (z < -1.5) {
+    out.push({ id: "rhr-low", severity: "good", category: "cardio", metric: "restingHeartRate",
+      title: `Puls in repaus excelent: ${today.toFixed(0)} bpm`,
+      body: `Cu ${(avg30 - today).toFixed(0)} bpm sub media ta — semn clar de recuperare completa. Corpul e pregatit pentru efort maxim.` });
+  }
+
+  // Long-term trend
+  if (data.length >= 30) {
+    const reg = trendRegression(last30);
+    if (reg && reg.significant && Math.abs(reg.slopePerMonth) > 1) {
+      const improving = reg.slopePerMonth < 0;
+      out.push({ id: "rhr-trend", severity: improving ? "good" : "warning", category: "trend", metric: "restingHeartRate",
+        title: improving
+          ? `Puls in repaus in scadere: ${reg.slopePerMonth.toFixed(1)} bpm/luna`
+          : `Puls in repaus in crestere: +${reg.slopePerMonth.toFixed(1)} bpm/luna`,
+        body: improving
+          ? `Trend confirmat statistic (R²=${reg.r2.toFixed(2)}, p<0.05). Un RHR in scadere e cel mai fiabil indicator ca fitness-ul cardiovascular se imbunatateste. Fiecare bpm in minus echivaleaza cu ~15% mai putine batai pe zi.`
+          : `Trend confirmat statistic (R²=${reg.r2.toFixed(2)}, p<0.05). Cauze posibile: supraantrenament, stres cronic, calitate scazuta a somnului, sau sedentarism crescut. Compara cu nivelul de activitate si somn din aceeasi perioada.` });
+    }
+  }
+
+  return out;
+}
+
+function hrvInsights(data: DailySummary[]): Insight[] {
+  const out: Insight[] = [];
+  const today = data[data.length - 1].mean;
+  const last30 = vals(lastN(data, 30));
+  const { mean: avg30, std: std30 } = meanStd(last30);
+  const z = std30 > 0 ? (today - avg30) / std30 : 0;
+
+  if (z < -2) {
+    out.push({ id: "hrv-low", severity: "alert", category: "recovery", metric: "hrv",
+      title: `HRV critic: ${today.toFixed(0)} ms (${z.toFixed(1)}σ sub medie)`,
+      body: `HRV-ul sub -2σ indica activare puternica a sistemului nervos simpatic (fight-or-flight). Corpul tau e in mod de supravietuire, nu de recuperare. Prioriteaza: respiratia controlata (4s inspir, 6s expir — 10 min), evita stimulantii si efortul fizic.` });
+  } else if (z > 1.5) {
+    out.push({ id: "hrv-high", severity: "good", category: "recovery", metric: "hrv",
+      title: `HRV optim: ${today.toFixed(0)} ms (+${z.toFixed(1)}σ)`,
+      body: `Sistemul nervos parasimpatic (rest-and-digest) e dominant. Asta inseamna recuperare completa. Zi ideala pentru efort maxim sau provocari cognitive.` });
+  }
+
+  // Trend
+  if (data.length >= 30) {
+    const reg = trendRegression(last30);
+    if (reg && reg.significant && Math.abs(reg.slopePerMonth) > 2) {
+      const up = reg.slopePerMonth > 0;
+      out.push({ id: "hrv-trend", severity: up ? "good" : "warning", category: "trend", metric: "hrv",
+        title: up
+          ? `HRV in crestere: +${reg.slopePerMonth.toFixed(1)} ms/luna`
+          : `HRV in scadere: ${reg.slopePerMonth.toFixed(1)} ms/luna`,
+        body: up
+          ? `Trend pozitiv confirmat (R²=${reg.r2.toFixed(2)}). HRV-ul in crestere pe termen lung reflecta adaptare la antrenament, management mai bun al stresului si calitate imbunatatita a somnului.`
+          : `Trend negativ confirmat (R²=${reg.r2.toFixed(2)}). HRV-ul in scadere pe mai multe saptamani e un semn de acumulare de oboseala. Redu volumul de antrenament cu 30-40% pentru 1-2 saptamani (deload).` });
+    }
+  }
+
+  // HRV variability (CV) — low CV might indicate overreaching
+  if (last30.length >= 14) {
+    const { mean, std } = meanStd(last30);
+    const cv = mean > 0 ? (std / mean) * 100 : 0;
+    if (cv < 5 && mean > 0) {
+      out.push({ id: "hrv-cv-low", severity: "info", category: "cardio", metric: "hrv",
+        title: `HRV foarte constant (CV=${cv.toFixed(0)}%)`,
+        body: `Un HRV cu variabilitate zilnica foarte mica poate indica overreaching functional. Un HRV sanatos variaza natural cu 10-15% zi de zi, reflectand capacitatea corpului de a se adapta la stimuli diferiti.` });
+    }
+  }
+
+  return out;
+}
+
+function spo2Insights(data: DailySummary[]): Insight[] {
+  const today = data[data.length - 1].mean;
+  const pct = today > 1 ? today : today * 100; // handle both 0.97 and 97 formats
+
+  if (pct < 94) {
+    return [{ id: "spo2-low", severity: "alert", category: "cardio", metric: "oxygenSaturation",
+      title: `SpO2 scazut: ${pct.toFixed(1)}%`,
+      body: `Sub 94% este considerat hipoxemie. Cauze posibile: apnee de somn, probleme pulmonare, altitudine. Daca nu esti la altitudine si nu ai simptome respiratorii, senzorul poate da erori (purtare laxa, miscare). Daca se repeta 3+ zile, consulta un pneumolog.` }];
+  }
+  if (pct < 96 && pct >= 94) {
+    return [{ id: "spo2-borderline", severity: "warning", category: "cardio", metric: "oxygenSaturation",
+      title: `SpO2 la limita: ${pct.toFixed(1)}%`,
+      body: `Normal e 96-100%. Valoarea ta e la limita inferioara. Monitorizat — daca scade sub 94% consistent, necesita evaluare medicala. Cauza frecventa: apnee de somn nedetectata.` }];
+  }
+  return [];
+}
+
+function vo2Insights(data: DailySummary[]): Insight[] {
+  const latest = data[data.length - 1].mean;
+  // VO2 Max classification (general adult)
+  const cls = latest >= 50 ? "excelent" : latest >= 42 ? "foarte bun" : latest >= 35 ? "bun" : latest >= 30 ? "mediu" : "sub medie";
+
+  const out: Insight[] = [{ id: "vo2", severity: latest >= 35 ? "good" : "info", category: "cardio", metric: "vo2Max",
+    title: `VO2 Max: ${latest.toFixed(1)} ml/kg/min — ${cls}`,
+    body: `VO2 Max e cel mai puternic predictor de longevitate din medicina (meta-analiza Kodama 2009, 100,000+ participanti). Fiecare 3.5 ml/kg/min in plus reduce mortalitatea cu ~13%. Cel mai eficient mod de crestere: 2-3 sesiuni/saptamana de HIIT (4x4 min la 85-95% din FC maxima, cu 3 min pauza).` }];
+
+  // Trend
+  if (data.length >= 30) {
+    const reg = trendRegression(vals(lastN(data, 90)));
+    if (reg && reg.significant) {
+      out.push({ id: "vo2-trend", severity: reg.slopePerMonth > 0 ? "good" : "warning", category: "trend", metric: "vo2Max",
+        title: reg.slopePerMonth > 0
+          ? `VO2 Max creste: +${reg.slopePerMonth.toFixed(1)}/luna`
+          : `VO2 Max scade: ${reg.slopePerMonth.toFixed(1)}/luna`,
+        body: reg.slopePerMonth > 0
+          ? `Progres confirmat statistic. Continua ce faci — rezultatele sunt vizibile.`
+          : `Scadere confirmata. Verifica: ai redus cardio-ul? Ai luat in greutate? O interventie de 6-8 saptamani de cardio consistent poate inversa trendul.` });
+    }
+  }
+  return out;
+}
+
+function bloodPressureInsights(metrics: Record<string, DailySummary[]>): Insight[] {
+  const sys = metrics.bloodPressureSystolic;
+  const dia = metrics.bloodPressureDiastolic;
+  if (!sys?.length || !dia?.length) return [];
+
+  const sVal = sys[sys.length - 1].mean;
+  const dVal = dia[dia.length - 1].mean;
+
+  if (sVal >= 140 || dVal >= 90) {
+    return [{ id: "bp-high", severity: "alert", category: "cardio",
+      title: `Tensiune ridicata: ${sVal.toFixed(0)}/${dVal.toFixed(0)} mmHg`,
+      body: `Valori in zona de hipertensiune stadiul 1+ (peste 140/90). Daca se repeta la mai multe masuratori in zile diferite, necesita evaluare medicala. Intre timp: reduce sarea, creste activitatea fizica, gestioneaza stresul.` }];
+  }
+  if (sVal >= 130 || dVal >= 80) {
+    return [{ id: "bp-elevated", severity: "warning", category: "cardio",
+      title: `Tensiune pre-hipertensiune: ${sVal.toFixed(0)}/${dVal.toFixed(0)} mmHg`,
+      body: `Zona 130-139/80-89 e pre-hipertensiune. Interventii non-farmacologice eficiente: reducerea sodiului (<2g/zi), dieta DASH, 150 min exercitiu/saptamana, pierdere in greutate daca e cazul.` }];
+  }
+  return [];
+}
+
+function respiratoryInsights(metrics: Record<string, DailySummary[]>): Insight[] {
+  const rr = metrics.respiratoryRate;
+  if (!rr || rr.length < 14) return [];
+
+  const { mean: avg, std } = meanStd(vals(lastN(rr, 30)));
+  const today = rr[rr.length - 1].mean;
+  const z = std > 0 ? (today - avg) / std : 0;
+
+  if (z > 2) {
+    return [{ id: "resp-high", severity: "warning", category: "cardio", metric: "respiratoryRate",
+      title: `Rata respiratorie crescuta: ${today.toFixed(1)} resp/min`,
+      body: `Cu ${(z).toFixed(1)}σ peste media ta de ${avg.toFixed(1)}. O rata respiratorie crescuta in somn poate indica: stres, congestie, sau inceputul unei infectii respiratorii. Monitorizeaza in combinatie cu RHR si HRV.` }];
+  }
+  return [];
+}
+
+// ═══════════════════════════════════════════════════════════
+// ACTIVITY
+// ═══════════════════════════════════════════════════════════
+
+function activityInsights(metrics: Record<string, DailySummary[]>): Insight[] {
+  const out: Insight[] = [];
+  const steps = metrics.stepCount;
+  if (!steps || steps.length < 7) return out;
+
+  const last7 = lastN(steps, 7).map(d => d.sum);
+  const { mean: avg, std } = meanStd(last7);
+  const { mean: avg30 } = steps.length >= 30 ? meanStd(lastN(steps, 30).map(d => d.sum)) : { mean: avg };
+
+  if (avg < 5000) {
+    out.push({ id: "steps-low", severity: "alert", category: "activity",
+      title: `Sedentar: ${avg.toFixed(0)} pasi/zi`,
+      body: `Sub 5,000 pasi/zi e clasificat ca sedentar. Meta-analiza Lee (2019, JAMA) pe 17,000 femei a aratat ca beneficiile pentru longevitate incep de la 4,400 pasi/zi si cresc pana la ~7,500. Nu trebuie sa ajungi la 10,000 — chiar 2,000 pasi in plus fata de nivelul actual fac diferenta.` });
+  } else if (avg >= 10000) {
+    out.push({ id: "steps-great", severity: "good", category: "activity",
+      title: `Foarte activ: ${avg.toFixed(0)} pasi/zi`,
+      body: `Peste 10,000 pasi/zi te plaseaza in top 20% populatie. Beneficiile cardiovasculare sunt near-maximal la acest nivel.` });
+  }
+
+  // Consistency
+  if (std > avg * 0.5 && avg > 2000) {
+    out.push({ id: "steps-inconsistent", severity: "info", category: "activity",
+      title: "Activitate inconsistenta",
+      body: `Variezi intre ${Math.min(...last7).toLocaleString()} si ${Math.max(...last7).toLocaleString()} pasi/zi. Consistenta zilnica (chiar la nivel mai scazut) e mai benefica decat zile foarte active alternate cu zile sedentare.` });
+  }
+
+  // Exercise minutes vs WHO target
+  if (metrics.exerciseTime?.length >= 7) {
+    const weekTotal = lastN(metrics.exerciseTime, 7).reduce((s, d) => s + d.sum, 0);
+    if (weekTotal < 150) {
+      out.push({ id: "ex-who", severity: "warning", category: "activity",
+        title: `Sub recomandarea OMS: ${weekTotal.toFixed(0)}/150 min`,
+        body: `OMS recomanda 150-300 min/saptamana de activitate moderata. ${weekTotal.toFixed(0)} minute e ${(weekTotal / 150 * 100).toFixed(0)}% din tinta. Iti lipsesc ${(150 - weekTotal).toFixed(0)} minute — echivalent cu ${Math.ceil((150 - weekTotal) / 30)} plimbari de 30 min.` });
+    } else {
+      out.push({ id: "ex-who-ok", severity: "good", category: "activity",
+        title: `Tinta OMS atinsa: ${weekTotal.toFixed(0)} min exercitiu`,
+        body: `Felicitari — depasesti pragul de 150 min/saptamana. Studiile arata beneficii aditionale pana la 300 min.` });
+    }
+  }
+
+  return out;
+}
+
+function exerciseEfficiency(metrics: Record<string, DailySummary[]>): Insight[] {
+  const ex = metrics.exerciseTime;
+  const cal = metrics.activeEnergy;
+  if (!ex || !cal || ex.length < 14) return [];
+
+  const exMap = new Map(ex.map(d => [d.date, d.sum]));
+  const calMap = new Map(cal.map(d => [d.date, d.sum]));
+
+  const efficiencies: number[] = [];
+  for (const [date, mins] of exMap) {
+    if (mins > 10) {
+      const c = calMap.get(date);
+      if (c && c > 0) efficiencies.push(c / mins); // cal per minute
+    }
+  }
+
+  if (efficiencies.length < 7) return [];
+  const first = efficiencies.slice(0, Math.floor(efficiencies.length / 2));
+  const last = efficiencies.slice(Math.floor(efficiencies.length / 2));
+  const { mean: fAvg } = meanStd(first);
+  const { mean: lAvg } = meanStd(last);
+
+  if (fAvg > 0 && lAvg > fAvg * 1.1) {
+    return [{ id: "ex-efficiency", severity: "good", category: "activity",
+      title: "Eficienta antrenamentului creste",
+      body: `Arzi ${lAvg.toFixed(1)} kcal/min de exercitiu comparativ cu ${fAvg.toFixed(1)} kcal/min anterior. Asta sugereaza ca antrenamentele devin mai intense sau ca ai crescut masa musculara.` }];
+  }
+  return [];
+}
+
+// ═══════════════════════════════════════════════════════════
+// MOBILITY
+// ═══════════════════════════════════════════════════════════
+
+function mobilityInsights(metrics: Record<string, DailySummary[]>): Insight[] {
+  const out: Insight[] = [];
+
+  if (metrics.walkingSpeed?.length >= 14) {
+    const last30 = vals(lastN(metrics.walkingSpeed, 30));
+    const { mean: avg } = meanStd(last30);
+    const kmh = avg * 3.6;
+
+    if (kmh < 3) {
+      out.push({ id: "walk-slow", severity: "warning", category: "mobility", metric: "walkingSpeed",
+        title: `Viteza de mers scazuta: ${kmh.toFixed(1)} km/h`,
+        body: `In cel mai mare studiu pe mobilitate (Studenski 2011, JAMA, 34,000 adulti), viteza de mers sub 3 km/h la varste >65 a fost asociata cu mortalitate semnificativ crescuta. La varste mai tinere, poate indica deconditioning sau probleme musculoscheletice. Exercitiile de forta a picioarelor pot ajuta.` });
+    }
+
+    // Trend
+    const reg = trendRegression(last30);
+    if (reg && reg.significant && Math.abs(reg.slopePerMonth) > 0.02) {
+      out.push({ id: "walk-trend", severity: reg.slopePerMonth > 0 ? "good" : "warning", category: "mobility", metric: "walkingSpeed",
+        title: reg.slopePerMonth > 0
+          ? `Viteza de mers creste: +${(reg.slopePerMonth * 3.6).toFixed(2)} km/h pe luna`
+          : `Viteza de mers scade: ${(reg.slopePerMonth * 3.6).toFixed(2)} km/h pe luna`,
+        body: `Trend confirmat statistic (R²=${reg.r2.toFixed(2)}). Viteza de mers e un biomarker integrat — reflecta forta musculara, balans, functie pulmonara si cardiaca simultan.` });
+    }
+  }
+
+  if (metrics.walkingAsymmetry?.length >= 14) {
+    const { mean: avg } = meanStd(vals(lastN(metrics.walkingAsymmetry, 7)));
+    if (avg > 10) {
+      out.push({ id: "asymm", severity: "warning", category: "mobility", metric: "walkingAsymmetry",
+        title: `Asimetrie in mers: ${avg.toFixed(1)}%`,
+        body: `Asimetrie >10% sugereaza compensare (un picior lucreaza diferit). Cauze: accidentare veche, dezechilibru muscular, durere articulara. Un fizioterapeut poate identifica cauza si prescrie exercitii corective.` });
+    }
+  }
+
+  if (metrics.doubleSupportTime?.length >= 14) {
+    const { mean: avg } = meanStd(vals(lastN(metrics.doubleSupportTime, 14)));
+    if (avg > 30) {
+      out.push({ id: "balance", severity: "warning", category: "mobility", metric: "doubleSupportTime",
+        title: `Timp dublu sprijin crescut: ${avg.toFixed(0)}%`,
+        body: `Petreci ${avg.toFixed(0)}% din pasul de mers cu ambele picioare pe sol (normal: <27%). Asta indica probleme de balans. Exercitii recomandate: statul pe un picior (30s x 3/zi), mers pe calcaie-varf, tai chi.` });
     }
   }
 
@@ -215,141 +710,160 @@ function strainInsights(metrics: Record<string, DailySummary[]>): Insight[] {
 }
 
 // ═══════════════════════════════════════════════════════════
-// SLEEP DEBT
+// BODY COMPOSITION
 // ═══════════════════════════════════════════════════════════
 
-function sleepDebtInsights(sleepNights: SleepNight[]): Insight[] {
-  if (sleepNights.length < 7) return [];
-  const last7 = sleepNights.slice(-7);
-  const TARGET_HOURS = 8; // recommended for most adults
+function bodyInsights(metrics: Record<string, DailySummary[]>): Insight[] {
+  const out: Insight[] = [];
+  const weight = metrics.bodyMass;
+  if (!weight || weight.length < 14) return out;
 
-  // Sleep debt = sum of (target - actual) over 7 days
-  let debt = 0;
-  for (const night of last7) {
-    const hours = night.totalMinutes / 60;
-    debt += TARGET_HOURS - hours; // positive = you owe sleep
+  const last30 = vals(lastN(weight, 30));
+  const reg = trendRegression(last30);
+
+  if (reg && reg.significant) {
+    const monthlyKg = reg.slopePerMonth;
+    if (Math.abs(monthlyKg) > 0.5) {
+      out.push({ id: "weight-trend", severity: "info", category: "body", metric: "bodyMass",
+        title: monthlyKg > 0
+          ? `Greutate in crestere: +${monthlyKg.toFixed(1)} kg/luna`
+          : `Greutate in scadere: ${monthlyKg.toFixed(1)} kg/luna`,
+        body: monthlyKg > 0
+          ? `Trend confirmat (R²=${reg.r2.toFixed(2)}). Rata de ${monthlyKg.toFixed(1)} kg/luna. Daca nu e intentionat (muscle gain), verifica: aport caloric, nivel de activitate, calitatea somnului (somnul scurt creste grelina — hormonul foamei).`
+          : `Pierdere de ${Math.abs(monthlyKg).toFixed(1)} kg/luna. Rata sanatoasa: 0.5-1 kg/saptamana. ${Math.abs(monthlyKg) > 4 ? "Rata ta e prea rapida — risc de pierdere musculara. Asigura-te ca mananci suficiente proteine (1.6g/kg corp)." : "Rata ta e in zona sanatoasa."}` });
+    }
   }
 
-  const debtHours = Math.max(0, debt);
-  const creditHours = Math.max(0, -debt);
-
-  if (debtHours > 5) {
-    return [{
-      id: "sleep-debt",
-      title: `Datorie de somn: ${debtHours.toFixed(1)} ore`,
-      body: `In ultima saptamana, ai dormit cu ${debtHours.toFixed(1)} ore mai putin decat ai nevoie. Datoria de somn se acumuleaza si afecteaza concentrarea, imunitatea si dispozitia. Nu o poti recupera intr-o singura noapte — ai nevoie de 2-3 nopti cu 1-2 ore in plus.`,
-      severity: "alert",
-      category: "sleep",
-    }];
-  } else if (debtHours > 2) {
-    return [{
-      id: "sleep-debt",
-      title: `Datorie usoara de somn: ${debtHours.toFixed(1)} ore`,
-      body: `Ai un mic deficit de somn acumulat. Incearca sa adormi cu 30 minute mai devreme in urmatoarele nopti.`,
-      severity: "warning",
-      category: "sleep",
-    }];
-  } else if (creditHours > 3) {
-    return [{
-      id: "sleep-credit",
-      title: "Somn excelent saptamana asta",
-      body: `Ai dormit cu ${creditHours.toFixed(1)} ore mai mult decat minimul necesar. Corpul tau e bine odihnit — vei simti beneficiile in energie si concentrare.`,
-      severity: "good",
-      category: "sleep",
-    }];
+  // Body fat
+  if (metrics.bodyFatPercentage?.length >= 7) {
+    const bf = metrics.bodyFatPercentage[metrics.bodyFatPercentage.length - 1].mean;
+    // Rough categories
+    if (bf > 30) {
+      out.push({ id: "bf-high", severity: "warning", category: "body", metric: "bodyFatPercentage",
+        title: `Procentaj grasime: ${bf.toFixed(1)}%`,
+        body: `Peste 30% la barbati / 35% la femei creste riscurile metabolice. Cea mai eficienta strategie: combinatie de deficit caloric moderat (300-500 kcal/zi) + antrenament de forta (mentine masa musculara) + proteine adecvate.` });
+    }
   }
 
-  return [];
+  return out;
 }
 
 // ═══════════════════════════════════════════════════════════
-// PATTERN DETECTION
+// AUDIO & WELLBEING
+// ═══════════════════════════════════════════════════════════
+
+function audioInsights(metrics: Record<string, DailySummary[]>): Insight[] {
+  const out: Insight[] = [];
+  if (metrics.headphoneAudio?.length >= 7) {
+    const { mean: avg } = meanStd(vals(lastN(metrics.headphoneAudio, 7)));
+    if (avg > 85) {
+      out.push({ id: "audio-danger", severity: "alert", category: "wellbeing", metric: "headphoneAudio",
+        title: `Volumul castilor e periculos: ${avg.toFixed(0)} dB`,
+        body: `Peste 85 dB, deteriorarea auzului incepe dupa 2 ore de expunere zilnica (NIOSH). La 95 dB, dupa doar 50 minute. Pierderea auzului e IREVERSIBILA. Redu volumul la 60-70% din maxim. Foloseste casti cu noise-canceling pentru a nu compensa zgomotul ambiental.` });
+    } else if (avg > 75) {
+      out.push({ id: "audio-warn", severity: "info", category: "wellbeing", metric: "headphoneAudio",
+        title: `Volum casti: ${avg.toFixed(0)} dB — zona sigura`,
+        body: `Sub 80 dB poti asculta ore intregi fara risc. Bine!` });
+    }
+  }
+
+  // Noise exposure
+  if (metrics.environmentalNoise?.length >= 7) {
+    const { mean: avg } = meanStd(vals(lastN(metrics.environmentalNoise, 7)));
+    if (avg > 70) {
+      out.push({ id: "noise-high", severity: "warning", category: "wellbeing", metric: "environmentalNoise",
+        title: `Expunere la zgomot ambiental: ${avg.toFixed(0)} dB`,
+        body: `Media de ${avg.toFixed(0)} dB e peste pragul OMS de 65 dB pentru expunere prelungita. Zgomotul cronic creste cortizolul, tensiunea arteriala si perturba somnul chiar daca nu esti constient de el. Ia in considerare dopuri de urechi sau white noise pentru somn.` });
+    }
+  }
+
+  return out;
+}
+
+function wellbeingInsights(metrics: Record<string, DailySummary[]>): Insight[] {
+  const out: Insight[] = [];
+
+  // Mindful minutes
+  if (metrics.mindfulMinutes?.length >= 7) {
+    const weekTotal = lastN(metrics.mindfulMinutes, 7).reduce((s, d) => s + d.sum, 0);
+    if (weekTotal > 0) {
+      out.push({ id: "mindful", severity: "good", category: "wellbeing",
+        title: `Meditatie saptamana asta: ${weekTotal.toFixed(0)} minute`,
+        body: weekTotal >= 70
+          ? `10+ min/zi — excelent. Meta-analizele arata ca meditatia regulata reduce cortizolul cu 14% si imbunatateste HRV-ul cu 4-5 ms in medie.`
+          : `${(weekTotal / 7).toFixed(0)} min/zi in medie. Studiile arata beneficii semnificative de la 10 min/zi. Incearca sa cresti treptat.` });
+    }
+  }
+
+  // Water intake
+  if (metrics.dietaryWater?.length >= 7) {
+    const { mean: avg } = meanStd(lastN(metrics.dietaryWater, 7).map(d => d.sum));
+    if (avg < 1500) {
+      out.push({ id: "water-low", severity: "warning", category: "wellbeing", metric: "dietaryWater",
+        title: `Hidratare insuficienta: ${(avg / 1000).toFixed(1)}L/zi`,
+        body: `Recomandarea generala: 2-3L/zi (mai mult daca faci sport sau e cald). Deshidratarea de doar 2% reduce performanta cognitiva cu 25% si creste pulsul.` });
+    }
+  }
+
+  return out;
+}
+
+// ═══════════════════════════════════════════════════════════
+// PATTERNS (sleep→HRV, strain→RHR)
 // ═══════════════════════════════════════════════════════════
 
 function patternDetection(metrics: Record<string, DailySummary[]>, sleepNights: SleepNight[]): Insight[] {
   const out: Insight[] = [];
 
-  // Pattern: short sleep → next day HRV drop
+  // Short sleep → next day HRV drop
   if (sleepNights.length >= 30 && metrics.hrv?.length >= 30) {
     const sleepMap = new Map(sleepNights.map(n => [n.date, n.totalMinutes / 60]));
     const hrvMap = new Map(metrics.hrv.map(d => [d.date, d.mean]));
     const dates = [...hrvMap.keys()].sort();
 
-    let shortSleepHRVDrop = 0;
-    let shortSleepCount = 0;
-    let normalSleepHRVMean = 0;
-    let normalCount = 0;
-
+    let shortHRV = 0, shortN = 0, normalHRV = 0, normalN = 0;
     for (let i = 1; i < dates.length; i++) {
       const sleep = sleepMap.get(dates[i - 1]);
       const hrv = hrvMap.get(dates[i]);
       if (sleep === undefined || hrv === undefined) continue;
-
-      if (sleep < 6) {
-        shortSleepHRVDrop += hrv;
-        shortSleepCount++;
-      } else {
-        normalSleepHRVMean += hrv;
-        normalCount++;
-      }
+      if (sleep < 6) { shortHRV += hrv; shortN++; }
+      else { normalHRV += hrv; normalN++; }
     }
 
-    if (shortSleepCount >= 5 && normalCount >= 10) {
-      const shortAvg = shortSleepHRVDrop / shortSleepCount;
-      const normalAvg = normalSleepHRVMean / normalCount;
+    if (shortN >= 5 && normalN >= 10) {
+      const shortAvg = shortHRV / shortN;
+      const normalAvg = normalHRV / normalN;
       const dropPct = ((normalAvg - shortAvg) / normalAvg) * 100;
-
       if (dropPct > 5) {
-        out.push({
-          id: "pattern-sleep-hrv",
-          title: "Pattern gasit: somn scurt → HRV scazut",
-          body: `Am analizat datele tale si am gasit un tipar clar: de fiecare data cand dormi sub 6 ore, HRV-ul scade cu ~${dropPct.toFixed(0)}% a doua zi (${shortAvg.toFixed(0)} ms vs ${normalAvg.toFixed(0)} ms dupa somn normal). Asta inseamna ca somnul tau are un impact direct si masurabil asupra recuperarii.`,
-          severity: "info",
-          category: "correlation",
-        });
+        out.push({ id: "pattern-sleep-hrv", severity: "info", category: "correlation",
+          title: `Pattern personal: somn <6h → HRV scade cu ${dropPct.toFixed(0)}%`,
+          body: `Bazat pe ${shortN} nopti scurte vs ${normalN} nopti normale din datele tale: HRV mediu dupa somn scurt = ${shortAvg.toFixed(0)} ms vs ${normalAvg.toFixed(0)} ms dupa somn normal. Asta e o dovada directa, din corpul tau, ca somnul afecteaza masurabil recuperarea.` });
       }
     }
   }
 
-  // Pattern: consecutive high strain → RHR elevation
+  // Consecutive high strain → RHR elevation
   if (metrics.exerciseTime?.length >= 30 && metrics.restingHeartRate?.length >= 30) {
     const exMap = new Map(metrics.exerciseTime.map(d => [d.date, d.sum]));
     const rhrMap = new Map(metrics.restingHeartRate.map(d => [d.date, d.mean]));
     const dates = [...rhrMap.keys()].sort();
 
-    let afterHighDays = 0;
-    let afterHighRHR = 0;
-    let afterNormalDays = 0;
-    let afterNormalRHR = 0;
-
+    let afterHighRHR = 0, afterHighN = 0, afterNormalRHR = 0, afterNormalN = 0;
     for (let i = 2; i < dates.length; i++) {
       const ex1 = exMap.get(dates[i - 2]) || 0;
       const ex2 = exMap.get(dates[i - 1]) || 0;
       const rhr = rhrMap.get(dates[i]);
       if (rhr === undefined) continue;
-
-      if (ex1 > 60 && ex2 > 60) { // 2 consecutive days of 60+ min
-        afterHighRHR += rhr;
-        afterHighDays++;
-      } else {
-        afterNormalRHR += rhr;
-        afterNormalDays++;
-      }
+      if (ex1 > 60 && ex2 > 60) { afterHighRHR += rhr; afterHighN++; }
+      else { afterNormalRHR += rhr; afterNormalN++; }
     }
 
-    if (afterHighDays >= 3 && afterNormalDays >= 10) {
-      const highAvg = afterHighRHR / afterHighDays;
-      const normalAvg = afterNormalRHR / afterNormalDays;
-      const diff = highAvg - normalAvg;
-
+    if (afterHighN >= 3 && afterNormalN >= 10) {
+      const diff = afterHighRHR / afterHighN - afterNormalRHR / afterNormalN;
       if (diff > 2) {
-        out.push({
-          id: "pattern-strain-rhr",
-          title: "Pattern gasit: efort consecutiv → puls crescut",
-          body: `Cand ai 2+ zile consecutive cu exercitiu intens (>60 min), pulsul in repaus creste cu ~${diff.toFixed(0)} bpm in ziua urmatoare. E un semn ca corpul tau cere o pauza dupa efort intens consecutiv.`,
-          severity: "info",
-          category: "correlation",
-        });
+        out.push({ id: "pattern-strain-rhr", severity: "info", category: "correlation",
+          title: `Pattern: 2+ zile intense → RHR +${diff.toFixed(0)} bpm`,
+          body: `Dupa 2 zile consecutive de exercitiu >60 min, pulsul tau in repaus creste cu ~${diff.toFixed(0)} bpm. Corpul tau cere o zi de recuperare dupa efort intens consecutiv.` });
       }
     }
   }
@@ -365,62 +879,36 @@ function dayOfWeekAnalysis(metrics: Record<string, DailySummary[]>, sleepNights:
   const out: Insight[] = [];
   const dayNames = ["Duminica", "Luni", "Marti", "Miercuri", "Joi", "Vineri", "Sambata"];
 
-  // Sleep by day of week
   if (sleepNights.length >= 28) {
     const byDay: number[][] = [[], [], [], [], [], [], []];
-    sleepNights.forEach(n => {
-      const dow = new Date(n.date).getDay();
-      byDay[dow].push(n.totalMinutes / 60);
-    });
+    sleepNights.forEach(n => byDay[new Date(n.date).getDay()].push(n.totalMinutes / 60));
 
-    const avgs = byDay.map((vals, i) => ({
-      day: dayNames[i],
-      avg: vals.length > 0 ? vals.reduce((a, b) => a + b, 0) / vals.length : 0,
-      count: vals.length,
-    })).filter(d => d.count >= 3);
+    const avgs = byDay.map((v, i) => ({ day: dayNames[i], avg: v.length > 0 ? v.reduce((a, b) => a + b, 0) / v.length : 0, count: v.length })).filter(d => d.count >= 3);
 
     if (avgs.length >= 5) {
       const worst = avgs.reduce((a, b) => a.avg < b.avg ? a : b);
       const best = avgs.reduce((a, b) => a.avg > b.avg ? a : b);
       const diff = best.avg - worst.avg;
-
       if (diff > 0.5) {
-        out.push({
-          id: "dow-sleep",
-          title: `Dormi cel mai putin ${worst.day.toLowerCase()} noapte`,
-          body: `Media ta: ${worst.avg.toFixed(1)}h ${worst.day.toLowerCase()} vs ${best.avg.toFixed(1)}h ${best.day.toLowerCase()} — o diferenta de ${(diff * 60).toFixed(0)} minute. Incearca sa pastrezi un program consistent in fiecare noapte.`,
-          severity: diff > 1 ? "warning" : "info",
-          category: "sleep",
-        });
+        out.push({ id: "dow-sleep", severity: diff > 1 ? "warning" : "info", category: "sleep",
+          title: `Cel mai putin somn: ${worst.day.toLowerCase()} noapte (${worst.avg.toFixed(1)}h)`,
+          body: `${worst.day}: ${worst.avg.toFixed(1)}h vs ${best.day}: ${best.avg.toFixed(1)}h — diferenta de ${(diff * 60).toFixed(0)} min. Programeaza-ti ${worst.day.toLowerCase()} cu mai putin timp pe ecran seara si o ora de culcare mai stricta.` });
       }
     }
   }
 
-  // Steps by day of week
   if (metrics.stepCount?.length >= 28) {
     const byDay: number[][] = [[], [], [], [], [], [], []];
-    metrics.stepCount.forEach(d => {
-      const dow = new Date(d.date).getDay();
-      byDay[dow].push(d.sum);
-    });
+    metrics.stepCount.forEach(d => byDay[new Date(d.date).getDay()].push(d.sum));
 
-    const avgs = byDay.map((vals, i) => ({
-      day: dayNames[i],
-      avg: vals.length > 0 ? vals.reduce((a, b) => a + b, 0) / vals.length : 0,
-      count: vals.length,
-    })).filter(d => d.count >= 3);
+    const avgs = byDay.map((v, i) => ({ day: dayNames[i], avg: v.length > 0 ? v.reduce((a, b) => a + b, 0) / v.length : 0, count: v.length })).filter(d => d.count >= 3);
 
     if (avgs.length >= 5) {
       const best = avgs.reduce((a, b) => a.avg > b.avg ? a : b);
       const worst = avgs.reduce((a, b) => a.avg < b.avg ? a : b);
-
-      out.push({
-        id: "dow-steps",
-        title: `Cel mai activ: ${best.day}`,
-        body: `Faci in medie ${best.avg.toFixed(0)} pasi ${best.day.toLowerCase()} si doar ${worst.avg.toFixed(0)} ${worst.day.toLowerCase()}. Incearca sa adaugi o plimbare scurta in zilele mai putin active.`,
-        severity: "info",
-        category: "activity",
-      });
+      out.push({ id: "dow-steps", severity: "info", category: "activity",
+        title: `Cel mai activ: ${best.day} (${best.avg.toFixed(0)} pasi)`,
+        body: `${worst.day}: doar ${worst.avg.toFixed(0)} pasi. O plimbare de 20 min adauga ~2,500 pasi. Programeaz-o ${worst.day.toLowerCase()} ca obicei fix.` });
     }
   }
 
@@ -428,251 +916,13 @@ function dayOfWeekAnalysis(metrics: Record<string, DailySummary[]>, sleepNights:
 }
 
 // ═══════════════════════════════════════════════════════════
-// CARDIO INSIGHTS (friendly language)
-// ═══════════════════════════════════════════════════════════
-
-function rhrInsights(data: DailySummary[]): Insight[] {
-  const out: Insight[] = [];
-  const today = data[data.length - 1].mean;
-  const last30 = data.slice(-30).map(d => d.mean);
-  const prev30 = data.slice(-60, -30).map(d => d.mean);
-  const { mean: avg30, std: std30 } = meanStd(last30);
-  const z = std30 > 0 ? (today - avg30) / std30 : 0;
-
-  if (z > 2) {
-    out.push({ id: "rhr-high", title: "Puls in repaus neobisnuit de ridicat", severity: "alert", category: "cardio", metric: "restingHeartRate",
-      body: `Pulsul tau in repaus azi (${today.toFixed(0)} bpm) e mult peste ce e normal pentru tine (${avg30.toFixed(0)} bpm). Asta poate insemna ca esti obosit, deshidratat, stresat, sau ca se pregateste o raceala. Bea apa, evita efortul intens si dormi devreme.` });
-  } else if (z < -1.5) {
-    out.push({ id: "rhr-low", title: "Puls in repaus excelent azi", severity: "good", category: "cardio", metric: "restingHeartRate",
-      body: `Pulsul tau (${today.toFixed(0)} bpm) e sub media ta (${avg30.toFixed(0)} bpm). Asta inseamna ca esti bine recuperat. Zi buna pentru efort fizic!` });
-  }
-
-  if (prev30.length >= 14) {
-    const { mean: prevAvg } = meanStd(prev30);
-    const pct = ((avg30 - prevAvg) / prevAvg) * 100;
-    if (pct < -3) {
-      out.push({ id: "rhr-trend-good", title: "Fitness-ul tau cardiovascular se imbunatateste", severity: "good", category: "trend", metric: "restingHeartRate",
-        body: `In ultima luna, pulsul tau in repaus a scazut de la ${prevAvg.toFixed(0)} la ${avg30.toFixed(0)} bpm. Un puls in repaus in scadere e unul dintre cele mai clare semne ca inima ta devine mai eficienta.` });
-    } else if (pct > 5) {
-      out.push({ id: "rhr-trend-bad", title: "Pulsul in repaus creste de cateva saptamani", severity: "warning", category: "trend", metric: "restingHeartRate",
-        body: `Media pulsului a crescut de la ${prevAvg.toFixed(0)} la ${avg30.toFixed(0)} bpm. Poate fi oboseala acumulata, stres la munca, sau lipsa de somn. Ia in considerare o saptamana mai usoara.` });
-    }
-  }
-
-  return out;
-}
-
-function hrvInsights(data: DailySummary[]): Insight[] {
-  const out: Insight[] = [];
-  const today = data[data.length - 1].mean;
-  const last30 = data.slice(-30).map(d => d.mean);
-  const prev30 = data.slice(-60, -30).map(d => d.mean);
-  const { mean: avg30, std: std30 } = meanStd(last30);
-  const z = std30 > 0 ? (today - avg30) / std30 : 0;
-
-  if (z < -2) {
-    out.push({ id: "hrv-low", title: "HRV mult sub normal — corpul tau e sub stres", severity: "alert", category: "recovery", metric: "hrv",
-      body: `HRV-ul tau (${today.toFixed(0)} ms) e mult sub ce e obisnuit pentru tine (${avg30.toFixed(0)} ms). HRV-ul scazut e adesea primul semn ca ceva nu e in regula — stres, oboseala, sau o boala care urmeaza. Ia-o usor si acorda-ti grija suplimentara.` });
-  } else if (z > 1.5) {
-    out.push({ id: "hrv-high", title: "HRV peste medie — esti excelent recuperat", severity: "good", category: "recovery", metric: "hrv",
-      body: `HRV-ul tau (${today.toFixed(0)} ms) e peste media ta. Asta inseamna ca sistemul nervos e relaxat si pregatit de efort. Profita!` });
-  }
-
-  if (prev30.length >= 14) {
-    const { mean: prevAvg } = meanStd(prev30);
-    const pct = ((avg30 - prevAvg) / prevAvg) * 100;
-    if (pct > 10) {
-      out.push({ id: "hrv-up", title: "HRV-ul tau creste de la luna la luna", severity: "good", category: "trend", metric: "hrv",
-        body: `De la ${prevAvg.toFixed(0)} la ${avg30.toFixed(0)} ms (+${pct.toFixed(0)}%). HRV in crestere pe termen lung inseamna ca corpul tau se adapteaza bine la antrenament si stres.` });
-    } else if (pct < -10) {
-      out.push({ id: "hrv-down", title: "HRV-ul scade de cateva saptamani", severity: "warning", category: "trend", metric: "hrv",
-        body: `HRV-ul mediu a scazut de la ${prevAvg.toFixed(0)} la ${avg30.toFixed(0)} ms. O scadere sustinuta poate insemna oboseala acumulata sau stres cronic. Incearca sa dormi mai mult si sa reduci antrenamentul intens.` });
-    }
-  }
-
-  return out;
-}
-
-function spo2Insights(data: DailySummary[]): Insight[] {
-  const today = data[data.length - 1].mean * 100;
-  if (today < 94) {
-    return [{ id: "spo2-low", title: "Oxigen in sange scazut", severity: "alert", category: "cardio", metric: "oxygenSaturation",
-      body: `SpO2 (${today.toFixed(1)}%) e sub 94%. Daca te simti ameteala, oboseala, sau ai dificultati de respiratie, ar fi bine sa consulti un medic.` }];
-  }
-  return [];
-}
-
-function vo2Insights(data: DailySummary[]): Insight[] {
-  const latest = data[data.length - 1].mean;
-  const cls = latest >= 50 ? "excelent" : latest >= 42 ? "bun" : latest >= 35 ? "mediu" : "sub medie";
-  return [{
-    id: "vo2",
-    title: `VO2 Max: ${latest.toFixed(1)} — nivel ${cls}`,
-    body: latest >= 42
-      ? `Capacitatea ta aeroba e ${cls}. VO2 Max e cel mai important predictor de longevitate din medicina — fiecare punct in plus reduce riscul de mortalitate cu ~9%.`
-      : `VO2 Max-ul tau poate fi imbunatatit. Cel mai eficient mod: 150+ minute pe saptamana de cardio la intensitate moderata (ritmul la care poti tine o conversatie). In 6-8 saptamani vei vedea progres.`,
-    severity: latest >= 42 ? "good" : "info",
-    category: "cardio",
-    metric: "vo2Max",
-  }];
-}
-
-// ═══════════════════════════════════════════════════════════
-// SLEEP INSIGHTS (friendly language)
-// ═══════════════════════════════════════════════════════════
-
-function sleepInsights(nights: SleepNight[]): Insight[] {
-  const out: Insight[] = [];
-  const last7 = nights.slice(-7);
-  const durations = last7.map(n => n.totalMinutes / 60);
-  const { mean: avg } = meanStd(durations);
-  const totalMin = last7.reduce((s, n) => s + n.totalMinutes, 0);
-  const deepPct = totalMin > 0 ? (last7.reduce((s, n) => s + n.stages.deep, 0) / totalMin) * 100 : 0;
-  const remPct = totalMin > 0 ? (last7.reduce((s, n) => s + n.stages.rem, 0) / totalMin) * 100 : 0;
-  const efficiencies = last7.map(n => n.efficiency * 100);
-  const { mean: avgEff } = meanStd(efficiencies);
-
-  if (avg < 6) {
-    out.push({ id: "sleep-short", title: "Dormi prea putin", severity: "alert", category: "sleep",
-      body: `Media ta e de doar ${avg.toFixed(1)} ore. Sub 6 ore pe noapte creste riscul de boli de inima cu 48% si slabeste imunitatea. Cel mai important lucru pe care il poti face e sa pui un alarm de culcare cu 8 ore inainte de trezire.` });
-  } else if (avg < 7) {
-    out.push({ id: "sleep-below", title: "Somnul tau e sub optim", severity: "warning", category: "sleep",
-      body: `${avg.toFixed(1)} ore pe noapte — sub cele 7-9h recomandate. Chiar si 30 minute in plus pe noapte fac o diferenta mare in energie si concentrare.` });
-  } else {
-    out.push({ id: "sleep-ok", title: "Durata somnului e buna", severity: "good", category: "sleep",
-      body: `${avg.toFixed(1)} ore pe noapte — in tinta. Somnul suficient e fundatia pe care se construieste totul.` });
-  }
-
-  if (deepPct < 10 && deepPct > 0) {
-    out.push({ id: "deep-low", title: "Somnul profund e insuficient", severity: "warning", category: "sleep",
-      body: `Doar ${deepPct.toFixed(0)}% din somnul tau e profund (ideal: 15-20%). Somnul profund e cel care repara muschii si consolideaza memoria. Sfaturi: evita alcoolul, mentine camera racoros (18°C), si fa exercitiu dimineata, nu seara.` });
-  }
-
-  if (remPct < 15 && remPct > 0) {
-    out.push({ id: "rem-low", title: "Somnul REM e sub tinta", severity: "warning", category: "sleep",
-      body: `REM-ul tau e ${remPct.toFixed(0)}% (ideal: 20-25%). Somnul REM e esential pentru procesarea emotiilor si invatare. Cafeina dupa ora 14 si alcoolul sunt cei mai comuni "ucigasi" de REM.` });
-  }
-
-  if (avgEff < 80) {
-    out.push({ id: "eff-low", title: "Petreci prea mult timp treaz in pat", severity: "warning", category: "sleep",
-      body: `Eficienta somnului: ${avgEff.toFixed(0)}%. Asta inseamna ca stai in pat dar nu dormi. Sfat de la specialisti: daca nu adormi in 20 minute, ridica-te si fa ceva relaxant. Intoarce-te in pat doar cand simti somnolos.` });
-  }
-
-  return out;
-}
-
-// ═══════════════════════════════════════════════════════════
-// ACTIVITY
-// ═══════════════════════════════════════════════════════════
-
-function activityInsights(metrics: Record<string, DailySummary[]>): Insight[] {
-  const out: Insight[] = [];
-  const steps = metrics.stepCount;
-  if (!steps || steps.length < 14) return out;
-
-  const last7 = steps.slice(-7).map(d => d.sum);
-  const { mean: avg } = meanStd(last7);
-
-  if (avg < 5000) {
-    out.push({ id: "steps-low", title: "Nivel de activitate foarte scazut", severity: "alert", category: "activity",
-      body: `${avg.toFixed(0)} pasi pe zi — sub pragul de 5,000 (sedentar). Nu e nevoie sa alergi maratoane — o plimbare de 30 min zilnic te duce la 7,000+ pasi si face o diferenta enorma pentru sanatate.` });
-  } else if (avg >= 8000) {
-    out.push({ id: "steps-good", title: "Esti activ — bravo!", severity: "good", category: "activity",
-      body: `${avg.toFixed(0)} pasi pe zi — peste pragul unde beneficiile pentru sanatate sunt cele mai mari.` });
-  }
-
-  if (metrics.exerciseTime?.length >= 7) {
-    const weekTotal = metrics.exerciseTime.slice(-7).reduce((s, d) => s + d.sum, 0);
-    if (weekTotal < 150) {
-      out.push({ id: "ex-low", title: "Exercitiu sub recomandarea OMS", severity: "warning", category: "activity",
-        body: `${weekTotal.toFixed(0)} minute de exercitiu saptamana asta. OMS recomanda 150 min/saptamana — reduce riscul de boli cardiovasculare cu 30-40%. Chiar si 3 plimbari rapide de 15 min pe zi te duc acolo.` });
-    }
-  }
-
-  return out;
-}
-
-// ═══════════════════════════════════════════════════════════
-// MOBILITY
-// ═══════════════════════════════════════════════════════════
-
-function mobilityInsights(metrics: Record<string, DailySummary[]>): Insight[] {
-  const out: Insight[] = [];
-
-  if (metrics.walkingSpeed?.length >= 14) {
-    const { mean: avg } = meanStd(metrics.walkingSpeed.slice(-30).map(d => d.mean));
-    if (avg < 0.8) {
-      out.push({ id: "walk-slow", title: "Viteza de mers e scazuta", severity: "warning", category: "mobility", metric: "walkingSpeed",
-        body: `Viteza medie (${(avg * 3.6).toFixed(1)} km/h) e sub 3 km/h. In studii cu zeci de mii de participanti, viteza de mers e cel mai puternic indicator de sanatate generala. Exercitiile de forta si echilibru pot ajuta.` });
-    }
-  }
-
-  if (metrics.walkingAsymmetry?.length >= 14) {
-    const { mean: avg } = meanStd(metrics.walkingAsymmetry.slice(-7).map(d => d.mean));
-    if (avg > 10) {
-      out.push({ id: "asymm", title: "Mergi asimetric", severity: "warning", category: "mobility", metric: "walkingAsymmetry",
-        body: `Asimetria mersului tau (${avg.toFixed(1)}%) sugereaza ca un picior lucreaza diferit de celalalt. Asta poate fi un semn de accidentare compensata sau dezechilibru muscular. Daca e persistent, merita o vizita la fizioterapeut.` });
-    }
-  }
-
-  return out;
-}
-
-// ═══════════════════════════════════════════════════════════
-// AUDIO
-// ═══════════════════════════════════════════════════════════
-
-function audioInsights(metrics: Record<string, DailySummary[]>): Insight[] {
-  const out: Insight[] = [];
-  if (metrics.headphoneAudio?.length >= 7) {
-    const { mean: avg } = meanStd(metrics.headphoneAudio.slice(-7).map(d => d.mean));
-    if (avg > 85) {
-      out.push({ id: "audio-danger", title: "Volumul castilor iti poate afecta auzul", severity: "alert", category: "wellbeing", metric: "headphoneAudio",
-        body: `Volumul mediu (${avg.toFixed(0)} dB) depaseste 85 dB — pragul la care deteriorarea auzului poate incepe dupa 2 ore de expunere zilnica. Da volumul mai incet — auzul pierdut nu se recupereaza.` });
-    }
-  }
-  return out;
-}
-
-// ═══════════════════════════════════════════════════════════
-// ILLNESS DETECTION
-// ═══════════════════════════════════════════════════════════
-
-function illnessDetection(metrics: Record<string, DailySummary[]>): Insight[] {
-  const rhr = metrics.restingHeartRate;
-  const hrv = metrics.hrv;
-  if (!rhr || rhr.length < 30 || !hrv || hrv.length < 30) return [];
-
-  const { mean: rhrAvg, std: rhrStd } = meanStd(rhr.slice(-30).map(d => d.mean));
-  const { mean: hrvAvg, std: hrvStd } = meanStd(hrv.slice(-30).map(d => d.mean));
-  const rhrZ = rhrStd > 0 ? (rhr[rhr.length - 1].mean - rhrAvg) / rhrStd : 0;
-  const hrvZ = hrvStd > 0 ? (hrv[hrv.length - 1].mean - hrvAvg) / hrvStd : 0;
-
-  let spo2Low = false;
-  if (metrics.oxygenSaturation?.length > 0) spo2Low = metrics.oxygenSaturation[metrics.oxygenSaturation.length - 1].mean * 100 < 95;
-
-  const flags = [rhrZ > 1.5, hrvZ < -1.5, spo2Low].filter(Boolean).length;
-
-  if (flags >= 2) {
-    return [{
-      id: "illness",
-      title: "Atentie: corpul tau arata semne de boala sau suprasolicitare",
-      body: `Mai multi indicatori sunt in zona rosie simultan${rhrZ > 1.5 ? " (puls crescut)" : ""}${hrvZ < -1.5 ? " (HRV scazut)" : ""}${spo2Low ? " (oxigen scazut)" : ""}. Acest tipar apare de obicei cu 1-2 zile INAINTE de simptome. Recomandare: odihna, hidratare, somn suplimentar. Sari peste antrenament.`,
-      severity: "alert",
-      category: "recovery",
-    }];
-  }
-  return [];
-}
-
-// ═══════════════════════════════════════════════════════════
-// CORRELATIONS (with friendly explanation)
+// CORRELATIONS
 // ═══════════════════════════════════════════════════════════
 
 function correlationInsights(metrics: Record<string, DailySummary[]>, sleepNights: SleepNight[]): Insight[] {
   const out: Insight[] = [];
 
-  // Sleep → HRV
+  // Sleep → HRV (lagged)
   if (sleepNights.length >= 30 && metrics.hrv?.length >= 30) {
     const sleepMap = new Map(sleepNights.map(n => [n.date, n.totalMinutes / 60]));
     const hrvMap = new Map(metrics.hrv.map(d => [d.date, d.mean]));
@@ -688,44 +938,57 @@ function correlationInsights(metrics: Record<string, DailySummary[]>, sleepNight
     if (xs.length >= 20) {
       const r = pearson(xs, ys);
       const p = pearsonPValue(r, xs.length);
-      if (r > 0.25 && p < 0.01) {
-        out.push({
-          id: "corr-sleep-hrv",
-          title: "Somnul tau imbunatateste direct recuperarea",
-          body: `Am gasit o legatura clara in datele tale: noptile in care dormi mai mult sunt urmate de HRV mai mare a doua zi. Cu cat dormi mai bine, cu atat te recuperezi mai repede. Aceasta legatura e confirmata statistic (r=${r.toFixed(2)}).`,
-          severity: "info",
-          category: "correlation",
-        });
+      if (Math.abs(r) > 0.2 && p < 0.05) {
+        const strength = Math.abs(r) > 0.5 ? "puternica" : Math.abs(r) > 0.3 ? "moderata" : "mica";
+        out.push({ id: "corr-sleep-hrv", severity: "info", category: "correlation",
+          title: `Somn → HRV: corelatie ${strength} (r=${r.toFixed(2)})`,
+          body: `${r > 0 ? "Mai mult somn = HRV mai mare a doua zi" : "Legatura inversa surprinzatoare"}. Bazat pe ${xs.length} perechi de zile, p=${p.toFixed(4)}. ${Math.abs(r) > 0.4 ? "Somnul e probabil cel mai puternic levier pe care il ai pentru HRV." : "Efectul exista dar e moderat — alti factori (stres, exercitiu) conteaza si ei."}` });
       }
     }
   }
 
-  // Steps → RHR
-  if (metrics.stepCount?.length >= 30 && metrics.restingHeartRate?.length >= 30) {
-    const stepsMap = new Map(metrics.stepCount.map(d => [d.date, d.sum]));
+  // Exercise → RHR next day
+  if (metrics.exerciseTime?.length >= 30 && metrics.restingHeartRate?.length >= 30) {
+    const exMap = new Map(metrics.exerciseTime.map(d => [d.date, d.sum]));
     const rhrMap = new Map(metrics.restingHeartRate.map(d => [d.date, d.mean]));
     const dates = [...rhrMap.keys()].sort();
 
     const xs: number[] = [], ys: number[] = [];
     for (let i = 1; i < dates.length; i++) {
-      const s = stepsMap.get(dates[i - 1]);
-      const h = rhrMap.get(dates[i]);
-      if (s !== undefined && h !== undefined) { xs.push(s); ys.push(h); }
+      const e = exMap.get(dates[i - 1]);
+      const r = rhrMap.get(dates[i]);
+      if (e !== undefined && r !== undefined) { xs.push(e); ys.push(r); }
     }
 
     if (xs.length >= 20) {
       const r = pearson(xs, ys);
       const p = pearsonPValue(r, xs.length);
-      if (Math.abs(r) > 0.25 && p < 0.01) {
-        out.push({
-          id: "corr-steps-rhr",
-          title: r > 0 ? "Zilele active iti cresc pulsul a doua zi" : "Activitatea iti scade pulsul in repaus",
+      if (Math.abs(r) > 0.2 && p < 0.05) {
+        out.push({ id: "corr-ex-rhr", severity: "info", category: "correlation",
+          title: `Exercitiu → RHR a doua zi (r=${r.toFixed(2)})`,
           body: r > 0
-            ? `Dupa zilele cu multi pasi, pulsul tau in repaus tinde sa fie putin mai ridicat a doua zi. E normal — corpul se recupereaza dupa efort.`
-            : `Zilele mai active sunt urmate de puls mai scazut. Asta sugereaza ca activitatea fizica te ajuta sa te relaxezi mai bine.`,
-          severity: "info",
-          category: "correlation",
-        });
+            ? `Zilele cu mai mult exercitiu sunt urmate de RHR mai ridicat. Normal — corpul se recupereaza. Daca RHR ramane ridicat 48h+, e semn de overtraining.`
+            : `Exercitiul iti scade pulsul in repaus a doua zi — asta indica o buna capacitate de recuperare.` });
+      }
+    }
+  }
+
+  // Sleep efficiency → deep sleep %
+  if (sleepNights.length >= 30) {
+    const xs: number[] = [], ys: number[] = [];
+    for (const n of lastN(sleepNights, 60)) {
+      if (n.totalMinutes > 0) {
+        xs.push(n.efficiency * 100);
+        ys.push(n.stages.deep / n.totalMinutes * 100);
+      }
+    }
+    if (xs.length >= 20) {
+      const r = pearson(xs, ys);
+      const p = pearsonPValue(r, xs.length);
+      if (r > 0.25 && p < 0.05) {
+        out.push({ id: "corr-eff-deep", severity: "info", category: "correlation",
+          title: `Eficienta somnului coreleaza cu somnul profund (r=${r.toFixed(2)})`,
+          body: `Noptile in care adormi mai repede si te trezesti mai putin au mai mult somn profund. Sfat: elimina ecranele cu 30 min inainte de culcare si mentine camera intunecata si racoros.` });
       }
     }
   }
@@ -734,55 +997,142 @@ function correlationInsights(metrics: Record<string, DailySummary[]>, sleepNight
 }
 
 // ═══════════════════════════════════════════════════════════
-// WEEKLY COMPARISON
+// WEEKLY + MONTHLY COMPARISON
 // ═══════════════════════════════════════════════════════════
 
 function weeklyComparison(metrics: Record<string, DailySummary[]>, sleepNights: SleepNight[]): Insight[] {
   const lines: string[] = [];
 
-  const items: { key: string; label: string; useSum: boolean; better: "up" | "down" }[] = [
-    { key: "stepCount", label: "Pasi", useSum: true, better: "up" },
-    { key: "restingHeartRate", label: "Puls repaus", useSum: false, better: "down" },
-    { key: "hrv", label: "HRV", useSum: false, better: "up" },
-    { key: "exerciseTime", label: "Exercitiu", useSum: true, better: "up" },
+  const items: { key: string; label: string; useSum: boolean; unit: string; better: "up" | "down" }[] = [
+    { key: "stepCount", label: "Pasi", useSum: true, unit: "", better: "up" },
+    { key: "restingHeartRate", label: "RHR", useSum: false, unit: " bpm", better: "down" },
+    { key: "hrv", label: "HRV", useSum: false, unit: " ms", better: "up" },
+    { key: "exerciseTime", label: "Exercitiu", useSum: true, unit: " min", better: "up" },
+    { key: "activeEnergy", label: "Calorii active", useSum: true, unit: " kcal", better: "up" },
   ];
 
-  for (const { key, label, useSum, better } of items) {
+  for (const { key, label, useSum, unit, better } of items) {
     const data = metrics[key];
     if (!data || data.length < 14) continue;
-    const tw = data.slice(-7).map(d => useSum ? d.sum : d.mean);
+    const tw = lastN(data, 7).map(d => useSum ? d.sum : d.mean);
     const lw = data.slice(-14, -7).map(d => useSum ? d.sum : d.mean);
     const { mean: t } = meanStd(tw);
     const { mean: l } = meanStd(lw);
     if (l === 0) continue;
 
     const pct = ((t - l) / l) * 100;
-    const arrow = pct > 2 ? "↑" : pct < -2 ? "↓" : "→";
+    const arrow = pct > 3 ? "↑" : pct < -3 ? "↓" : "→";
     const isGood = (pct > 0 && better === "up") || (pct < 0 && better === "down");
-    const status = Math.abs(pct) < 3 ? "stabil" : isGood ? "mai bine" : "mai rau";
-    lines.push(`${label}: ${arrow} ${Math.abs(pct).toFixed(0)}% (${status})`);
+    const emoji = Math.abs(pct) < 3 ? "⚖️" : isGood ? "✅" : "⚠️";
+    const val = useSum ? t.toFixed(0) : t.toFixed(1);
+    lines.push(`${emoji} ${label}: ${val}${unit} ${arrow} ${Math.abs(pct).toFixed(0)}%`);
   }
 
   if (sleepNights.length >= 14) {
-    const tw = sleepNights.slice(-7).map(n => n.totalMinutes / 60);
+    const tw = lastN(sleepNights, 7).map(n => n.totalMinutes / 60);
     const lw = sleepNights.slice(-14, -7).map(n => n.totalMinutes / 60);
     const { mean: t } = meanStd(tw);
     const { mean: l } = meanStd(lw);
     if (l > 0) {
       const pct = ((t - l) / l) * 100;
-      const arrow = pct > 2 ? "↑" : pct < -2 ? "↓" : "→";
-      lines.push(`Somn: ${arrow} ${Math.abs(pct).toFixed(0)}% (${Math.abs(pct) < 3 ? "stabil" : pct > 0 ? "mai bine" : "mai rau"})`);
+      const arrow = pct > 3 ? "↑" : pct < -3 ? "↓" : "→";
+      const emoji = Math.abs(pct) < 3 ? "⚖️" : pct > 0 ? "✅" : "⚠️";
+      lines.push(`${emoji} Somn: ${t.toFixed(1)}h ${arrow} ${Math.abs(pct).toFixed(0)}%`);
     }
   }
 
   if (lines.length >= 3) {
-    return [{
-      id: "weekly",
-      title: "Saptamana asta vs saptamana trecuta",
-      body: lines.join("\n"),
-      severity: "info",
-      category: "trend",
-    }];
+    return [{ id: "weekly", severity: "info", category: "trend",
+      title: "Comparatie: aceasta saptamana vs anterioara",
+      body: lines.join("\n") }];
   }
   return [];
+}
+
+function monthlyTrend(metrics: Record<string, DailySummary[]>, sleepNights: SleepNight[]): Insight[] {
+  const lines: string[] = [];
+
+  const items: { key: string; label: string; useSum: boolean; unit: string; better: "up" | "down" }[] = [
+    { key: "restingHeartRate", label: "RHR", useSum: false, unit: " bpm", better: "down" },
+    { key: "hrv", label: "HRV", useSum: false, unit: " ms", better: "up" },
+    { key: "vo2Max", label: "VO2 Max", useSum: false, unit: "", better: "up" },
+  ];
+
+  for (const { key, label, useSum, unit, better } of items) {
+    const data = metrics[key];
+    if (!data || data.length < 60) continue;
+    const thisMonth = lastN(data, 30).map(d => useSum ? d.sum : d.mean);
+    const lastMonth = data.slice(-60, -30).map(d => useSum ? d.sum : d.mean);
+    const { mean: t } = meanStd(thisMonth);
+    const { mean: l } = meanStd(lastMonth);
+    if (l === 0) continue;
+
+    const diff = t - l;
+    const isGood = (diff > 0 && better === "up") || (diff < 0 && better === "down");
+    const emoji = Math.abs(diff) < 0.5 ? "⚖️" : isGood ? "✅" : "⚠️";
+    lines.push(`${emoji} ${label}: ${t.toFixed(1)}${unit} (${diff > 0 ? "+" : ""}${diff.toFixed(1)} fata de luna trecuta)`);
+  }
+
+  if (sleepNights.length >= 60) {
+    const thisM = lastN(sleepNights, 30).map(n => n.totalMinutes / 60);
+    const lastM = sleepNights.slice(-60, -30).map(n => n.totalMinutes / 60);
+    const { mean: t } = meanStd(thisM);
+    const { mean: l } = meanStd(lastM);
+    const diff = t - l;
+    const emoji = Math.abs(diff) < 0.1 ? "⚖️" : diff > 0 ? "✅" : "⚠️";
+    lines.push(`${emoji} Somn: ${t.toFixed(1)}h (${diff > 0 ? "+" : ""}${(diff * 60).toFixed(0)} min/noapte)`);
+  }
+
+  if (lines.length >= 2) {
+    return [{ id: "monthly", severity: "info", category: "trend",
+      title: "Evolutie lunara: aceasta luna vs anterioara",
+      body: lines.join("\n") }];
+  }
+  return [];
+}
+
+// ═══════════════════════════════════════════════════════════
+// PERSONAL RECORDS
+// ═══════════════════════════════════════════════════════════
+
+function personalRecords(metrics: Record<string, DailySummary[]>, sleepNights: SleepNight[]): Insight[] {
+  const out: Insight[] = [];
+
+  // Best HRV in last 90 days
+  if (metrics.hrv?.length >= 30) {
+    const last90 = lastN(metrics.hrv, 90);
+    const best = last90.reduce((a, b) => a.mean > b.mean ? a : b);
+    const today = metrics.hrv[metrics.hrv.length - 1];
+    if (today.date === best.date) {
+      out.push({ id: "record-hrv", severity: "good", category: "recovery",
+        title: `Record personal HRV: ${best.mean.toFixed(0)} ms`,
+        body: `Cel mai bun HRV din ultimele 90 de zile! Asta inseamna ca tot ce ai facut recent (somn, exercitiu, management stres) functioneaza. Noteaza ce ai facut diferit in ultimele zile — repeta.` });
+    }
+  }
+
+  // Best sleep in last 30 days
+  if (sleepNights.length >= 14) {
+    const last30 = lastN(sleepNights, 30);
+    const best = last30.reduce((a, b) => a.efficiency > b.efficiency ? a : b);
+    const today = sleepNights[sleepNights.length - 1];
+    if (today.date === best.date && today.efficiency > 0.9) {
+      out.push({ id: "record-sleep", severity: "good", category: "sleep",
+        title: `Cel mai bun somn din luna: ${(today.efficiency * 100).toFixed(0)}% eficienta`,
+        body: `${(today.totalMinutes / 60).toFixed(1)}h dormite cu eficienta de ${(today.efficiency * 100).toFixed(0)}%. Ce a fost diferit? Ora de culcare, temperatura, fara ecrane? Incearca sa reproduci conditiile.` });
+    }
+  }
+
+  // Most steps in last 30 days
+  if (metrics.stepCount?.length >= 14) {
+    const last30 = lastN(metrics.stepCount, 30);
+    const best = last30.reduce((a, b) => a.sum > b.sum ? a : b);
+    const today = metrics.stepCount[metrics.stepCount.length - 1];
+    if (today.date === best.date && today.sum > 12000) {
+      out.push({ id: "record-steps", severity: "good", category: "activity",
+        title: `Cel mai activ din luna: ${today.sum.toLocaleString()} pasi`,
+        body: `Record de pasi din ultimele 30 de zile! Zi excelenta pentru sanatatea cardiovasculara.` });
+    }
+  }
+
+  return out;
 }

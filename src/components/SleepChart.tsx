@@ -33,38 +33,26 @@ export function SleepChart({ data, days = 30 }: SleepChartProps) {
       efficiency: Math.round(d.efficiency * 100),
     }));
 
-    // Compute sleep stats
     const efficiencies = sliced.map((d) => d.efficiency * 100);
     const durations = sliced.map((d) => d.totalMinutes / 60);
-    const midpoints = sliced.map((d) => d.sleepMidpoint);
 
-    // Social jet lag: weekday vs weekend midpoint difference
     const weekdayMid: number[] = [];
     const weekendMid: number[] = [];
     sliced.forEach((d) => {
       const dow = new Date(d.date).getDay();
-      if (dow === 0 || dow === 5 || dow === 6) {
-        weekendMid.push(d.sleepMidpoint);
-      } else {
-        weekdayMid.push(d.sleepMidpoint);
-      }
+      if (dow === 0 || dow === 5 || dow === 6) weekendMid.push(d.sleepMidpoint);
+      else weekdayMid.push(d.sleepMidpoint);
     });
 
-    const avgWeekdayMid =
-      weekdayMid.length > 0
-        ? weekdayMid.reduce((a, b) => a + b, 0) / weekdayMid.length
-        : 0;
-    const avgWeekendMid =
-      weekendMid.length > 0
-        ? weekendMid.reduce((a, b) => a + b, 0) / weekendMid.length
-        : 0;
+    const avgWeekdayMid = weekdayMid.length > 0 ? weekdayMid.reduce((a, b) => a + b, 0) / weekdayMid.length : 0;
+    const avgWeekendMid = weekendMid.length > 0 ? weekendMid.reduce((a, b) => a + b, 0) / weekendMid.length : 0;
 
     const { mean: avgDuration } = meanStd(durations);
     const { mean: avgEfficiency } = meanStd(efficiencies);
+    const midpoints = sliced.map(d => d.sleepMidpoint);
     const { std: midpointStd } = meanStd(midpoints);
     const socialJetLag = Math.abs(avgWeekendMid - avgWeekdayMid);
 
-    // Deep sleep percentage
     const totalDeep = sliced.reduce((s, d) => s + d.stages.deep, 0);
     const totalSleep = sliced.reduce((s, d) => s + d.totalMinutes, 0);
     const deepPct = totalSleep > 0 ? (totalDeep / totalSleep) * 100 : 0;
@@ -91,9 +79,9 @@ export function SleepChart({ data, days = 30 }: SleepChartProps) {
 
   return (
     <div className="space-y-4">
-      {/* Stats row */}
+      {/* Stats row — 2 cols on mobile, 3 on tablet, 5 on desktop */}
       {stats && (
-        <div className="grid grid-cols-5 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
           {[
             { label: "Durata medie", value: `${stats.avgDuration}h`, good: Number(stats.avgDuration) >= 7 },
             { label: "Eficienta", value: `${stats.avgEfficiency}%`, good: Number(stats.avgEfficiency) >= 85 },
@@ -101,9 +89,9 @@ export function SleepChart({ data, days = 30 }: SleepChartProps) {
             { label: "Regularitate", value: `±${stats.regularity}h`, good: Number(stats.regularity) < 1 },
             { label: "Jet lag social", value: `${stats.socialJetLag}h`, good: Number(stats.socialJetLag) < 1 },
           ].map((s) => (
-            <div key={s.label} className="glass p-3 text-center">
-              <p className="text-xs text-muted mb-1">{s.label}</p>
-              <p className={`text-lg font-bold ${s.good ? "text-accent" : "text-warning"}`}>
+            <div key={s.label} className="glass p-2.5 sm:p-3 text-center">
+              <p className="text-[9px] sm:text-[10px] text-[var(--muted)] mb-0.5">{s.label}</p>
+              <p className="text-base sm:text-lg font-bold" style={{ color: s.good ? "#10b981" : "#f59e0b" }}>
                 {s.value}
               </p>
             </div>
@@ -112,43 +100,36 @@ export function SleepChart({ data, days = 30 }: SleepChartProps) {
       )}
 
       {/* Stacked bar chart */}
-      <div className="glass p-5">
-        <h3 className="text-sm font-medium mb-4">
-          Stadii somn
-          <span className="text-muted ml-2 font-normal">ultimele {days}z</span>
-        </h3>
-
-        <div className="flex gap-4 text-xs text-muted mb-3">
-          <span className="flex items-center gap-1">
-            <span className="w-3 h-2 rounded bg-blue-900 inline-block" /> Profund
-          </span>
-          <span className="flex items-center gap-1">
-            <span className="w-3 h-2 rounded bg-blue-500 inline-block" /> Usor
-          </span>
-          <span className="flex items-center gap-1">
-            <span className="w-3 h-2 rounded bg-purple-500 inline-block" /> REM
-          </span>
-          <span className="flex items-center gap-1">
-            <span className="w-3 h-2 rounded bg-red-400/50 inline-block" /> Treaz
-          </span>
+      <div className="glass p-4 sm:p-5">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-xs sm:text-sm font-medium">
+            Stadii somn
+            <span className="text-[var(--muted)] ml-2 font-normal text-[10px]">ultimele {chartData.length}z</span>
+          </h3>
+          <div className="flex gap-2 sm:gap-3 text-[9px] text-[var(--muted)]">
+            <span className="flex items-center gap-1"><span className="w-2.5 h-2 rounded inline-block bg-blue-900" /> Profund</span>
+            <span className="flex items-center gap-1"><span className="w-2.5 h-2 rounded inline-block bg-blue-500" /> Usor</span>
+            <span className="flex items-center gap-1"><span className="w-2.5 h-2 rounded inline-block bg-purple-500" /> REM</span>
+            <span className="hidden sm:flex items-center gap-1"><span className="w-2.5 h-2 rounded inline-block bg-red-400/50" /> Treaz</span>
+          </div>
         </div>
 
-        <div className="h-48">
+        <div className="h-40 sm:h-48 w-full">
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={chartData} margin={{ top: 5, right: 5, bottom: 5, left: 0 }}>
+            <BarChart data={chartData} margin={{ top: 5, right: 5, bottom: 5, left: -15 }}>
               <XAxis
                 dataKey="date"
-                tick={{ fill: "#737373", fontSize: 9 }}
+                tick={{ fill: "rgba(255,255,255,0.3)", fontSize: 9 }}
                 tickLine={false}
                 axisLine={false}
                 interval="preserveStartEnd"
+                minTickGap={25}
               />
               <YAxis
-                tick={{ fill: "#737373", fontSize: 10 }}
+                tick={{ fill: "rgba(255,255,255,0.3)", fontSize: 9 }}
                 tickLine={false}
                 axisLine={false}
-                width={30}
-                label={{ value: "hours", angle: -90, position: "insideLeft", style: { fill: "#525252", fontSize: 10 } }}
+                width={28}
               />
               <Tooltip
                 contentStyle={{
@@ -156,16 +137,17 @@ export function SleepChart({ data, days = 30 }: SleepChartProps) {
                   backdropFilter: "blur(12px)",
                   border: "1px solid rgba(255,255,255,0.1)",
                   borderRadius: "10px",
-                  fontSize: "12px",
+                  fontSize: "11px",
                   boxShadow: "0 8px 32px rgba(0,0,0,0.5)",
                 }}
-                formatter={(val, name) => [
-                  `${Number(val).toFixed(1)}h`,
-                  String(name).charAt(0).toUpperCase() + String(name).slice(1),
-                ]}
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                formatter={((val: any, name: any) => {
+                  const labels: Record<string, string> = { deep: "Profund", core: "Usor", rem: "REM", awake: "Treaz" };
+                  return [`${Number(val).toFixed(1)}h`, labels[String(name)] || String(name)];
+                }) as any}
               />
-              <ReferenceLine y={7} stroke="#10b981" strokeDasharray="4 4" strokeOpacity={0.5} />
-              <ReferenceLine y={9} stroke="#10b981" strokeDasharray="4 4" strokeOpacity={0.5} />
+              <ReferenceLine y={7} stroke="#10b981" strokeDasharray="4 4" strokeOpacity={0.4} />
+              <ReferenceLine y={9} stroke="#10b981" strokeDasharray="4 4" strokeOpacity={0.4} />
               <Bar dataKey="deep" stackId="sleep" fill="#1e3a5f" radius={[0, 0, 0, 0]} isAnimationActive={false} />
               <Bar dataKey="core" stackId="sleep" fill="#3b82f6" isAnimationActive={false} />
               <Bar dataKey="rem" stackId="sleep" fill="#a855f7" isAnimationActive={false} />

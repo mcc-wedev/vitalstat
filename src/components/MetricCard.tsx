@@ -58,34 +58,34 @@ export function MetricCard({ metricKey, data, onClick }: MetricCardProps) {
         style={{ background: `linear-gradient(90deg, transparent, ${config.color}, transparent)` }}
       />
 
-      <div className="flex items-start justify-between mb-2">
-        <span className="text-[11px] text-[var(--muted)] uppercase tracking-wider font-medium">
+      <div className="flex items-start justify-between mb-1.5">
+        <span className="text-[10px] sm:text-[11px] text-[var(--muted)] uppercase tracking-wider font-medium leading-tight">
           {config.label}
         </span>
         <span
-          className={`text-xs font-semibold tabular-nums ${
+          className={`text-[10px] sm:text-xs font-semibold tabular-nums shrink-0 ml-1 ${
             trend === "stable" ? "text-[var(--muted)]"
               : trendIsGood ? "text-[#10b981]" : "text-[#ef4444]"
           }`}
         >
           {trend === "up" ? "↑" : trend === "down" ? "↓" : "→"}
-          {Math.abs(trendPct).toFixed(1)}%
+          {Math.abs(trendPct).toFixed(0)}%
         </span>
       </div>
 
-      <div className="flex items-end gap-1.5 mb-3">
-        <span className="text-2xl font-bold tabular-nums leading-none">
+      <div className="flex items-end gap-1 mb-2">
+        <span className="text-xl sm:text-2xl font-bold tabular-nums leading-none">
           {latest.toFixed(config.decimals)}
         </span>
         {config.unit && (
-          <span className="text-[10px] text-[var(--muted)] mb-0.5">{config.unit}</span>
+          <span className="text-[9px] sm:text-[10px] text-[var(--muted)] mb-0.5">{config.unit}</span>
         )}
       </div>
 
       {sparkData.length > 3 && (
-        <div className="h-8 -mx-1 opacity-60">
+        <div className="h-7 sm:h-8 w-full opacity-50">
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={sparkData}>
+            <LineChart data={sparkData} margin={{ top: 2, right: 2, bottom: 2, left: 2 }}>
               <Line
                 type="monotone"
                 dataKey="v"

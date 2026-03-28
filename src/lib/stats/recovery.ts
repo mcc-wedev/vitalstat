@@ -67,24 +67,36 @@ export function calculateRecovery(
     hrvScore = clamp(50 + z * 25, 0, 100);
   }
 
-  // Sleep Score: efficiency * duration factor * deep sleep bonus
+  // Sleep Score: weighted combination (efficiency 40%, duration 30%, deep 15%, REM 15%)
   let sleepScore = 50;
   if (todaySleep) {
-    const efficiencyScore = todaySleep.efficiency * 100;
-    // Duration: optimal 7-9h, penalize outside
     const hours = todaySleep.totalMinutes / 60;
-    const durationFactor = hours >= 7 && hours <= 9
-      ? 1
-      : hours < 7
-        ? hours / 7
-        : Math.max(0.7, 1 - (hours - 9) * 0.1);
-    // Deep sleep: should be ~15-20% of total
-    const deepPct = todaySleep.stages.deep / Math.max(todaySleep.totalMinutes, 1);
-    const deepBonus = deepPct >= 0.15 ? 10 : deepPct >= 0.10 ? 5 : 0;
+    const totalMin = Math.max(todaySleep.totalMinutes, 1);
 
-    sleepScore = clamp(efficiencyScore * durationFactor + deepBonus, 0, 100);
+    // Efficiency component (0-100)
+    const effScore = clamp(todaySleep.efficiency * 100, 0, 100);
+
+    // Duration component: optimal 7-9h
+    const durScore = hours >= 7 && hours <= 9
+      ? 100
+      : hours < 7
+        ? clamp((hours / 7) * 100, 0, 100)
+        : clamp(100 - (hours - 9) * 20, 50, 100);
+
+    // Deep sleep component: target 15-20%
+    const deepPct = (todaySleep.stages.deep / totalMin) * 100;
+    const deepScore = deepPct >= 20 ? 100 : deepPct >= 15 ? 85 : deepPct >= 10 ? 60 : clamp(deepPct * 4, 0, 40);
+
+    // REM component: target 20-25%
+    const remPct = (todaySleep.stages.rem / totalMin) * 100;
+    const remScore = remPct >= 25 ? 100 : remPct >= 20 ? 85 : remPct >= 15 ? 65 : clamp(remPct * 4, 0, 40);
+
+    sleepScore = clamp(
+      effScore * 0.4 + durScore * 0.3 + deepScore * 0.15 + remScore * 0.15,
+      0, 100
+    );
   } else if (sleepBefore.length < minDays) {
-    sleepScore = 50; // neutral if no sleep data
+    sleepScore = 50;
   }
 
   const total = Math.round(

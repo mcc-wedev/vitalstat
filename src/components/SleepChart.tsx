@@ -83,7 +83,7 @@ export function SleepChart({ data, days = 30 }: SleepChartProps) {
 
   if (chartData.length === 0) {
     return (
-      <div className="bg-card border border-card-border rounded-xl p-6 text-center text-muted">
+      <div className="glass p-6 text-center text-[var(--muted)]">
         Nu sunt date de somn disponibile
       </div>
     );
@@ -101,7 +101,7 @@ export function SleepChart({ data, days = 30 }: SleepChartProps) {
             { label: "Regularitate", value: `±${stats.regularity}h`, good: Number(stats.regularity) < 1 },
             { label: "Jet lag social", value: `${stats.socialJetLag}h`, good: Number(stats.socialJetLag) < 1 },
           ].map((s) => (
-            <div key={s.label} className="bg-card border border-card-border rounded-lg p-3 text-center">
+            <div key={s.label} className="glass p-3 text-center">
               <p className="text-xs text-muted mb-1">{s.label}</p>
               <p className={`text-lg font-bold ${s.good ? "text-accent" : "text-warning"}`}>
                 {s.value}
@@ -112,7 +112,7 @@ export function SleepChart({ data, days = 30 }: SleepChartProps) {
       )}
 
       {/* Stacked bar chart */}
-      <div className="bg-card border border-card-border rounded-xl p-4">
+      <div className="glass p-5">
         <h3 className="text-sm font-medium mb-4">
           Stadii somn
           <span className="text-muted ml-2 font-normal">ultimele {days}z</span>
@@ -152,10 +152,12 @@ export function SleepChart({ data, days = 30 }: SleepChartProps) {
               />
               <Tooltip
                 contentStyle={{
-                  background: "#1a1a1a",
-                  border: "1px solid #333",
-                  borderRadius: "8px",
+                  background: "rgba(10,10,20,0.95)",
+                  backdropFilter: "blur(12px)",
+                  border: "1px solid rgba(255,255,255,0.1)",
+                  borderRadius: "10px",
                   fontSize: "12px",
+                  boxShadow: "0 8px 32px rgba(0,0,0,0.5)",
                 }}
                 formatter={(val, name) => [
                   `${Number(val).toFixed(1)}h`,

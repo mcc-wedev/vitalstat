@@ -10,6 +10,7 @@ interface InsightsPanelProps {
   sleepNights: SleepNight[];
   filter?: string;
   maxItems?: number;
+  compact?: boolean;
 }
 
 const SEV: Record<InsightSeverity, { icon: string; bg: string; border: string; text: string; glow: string }> = {
@@ -21,7 +22,7 @@ const SEV: Record<InsightSeverity, { icon: string; bg: string; border: string; t
 
 const SEV_ORDER: InsightSeverity[] = ["alert", "warning", "info", "good"];
 
-export function InsightsPanel({ metrics, sleepNights, filter, maxItems }: InsightsPanelProps) {
+export function InsightsPanel({ metrics, sleepNights, filter, maxItems, compact }: InsightsPanelProps) {
   const insights = useMemo(() => {
     let all = generateInsights(metrics, sleepNights);
     if (filter) all = all.filter(i => i.category === filter || i.metric === filter);
@@ -31,6 +32,27 @@ export function InsightsPanel({ metrics, sleepNights, filter, maxItems }: Insigh
   }, [metrics, sleepNights, filter, maxItems]);
 
   if (insights.length === 0) return null;
+
+  if (compact) {
+    return (
+      <div className="space-y-2.5">
+        {insights.map((insight) => {
+          const s = SEV[insight.severity];
+          return (
+            <div key={insight.id}>
+              <div className="flex items-start gap-2">
+                <span className="text-sm shrink-0">{s.icon}</span>
+                <div className="min-w-0">
+                  <h4 className={`font-medium text-xs ${s.text}`}>{insight.title}</h4>
+                  <p className="text-[11px] text-[var(--muted-strong)] mt-0.5 leading-relaxed line-clamp-2">{insight.body}</p>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-3">

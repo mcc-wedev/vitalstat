@@ -2,12 +2,15 @@
 
 import { useMemo } from "react";
 import type { DailySummary, SleepNight } from "@/lib/parser/healthTypes";
-import { calculateRecovery } from "@/lib/stats/recovery";
+import { calculateRecovery, type RecoveryScore as RecoveryResult } from "@/lib/stats/recovery";
 
 interface HeroScoreProps {
   rhrData: DailySummary[];
   hrvData: DailySummary[];
   sleepData: SleepNight[];
+  exerciseData?: DailySummary[];
+  respData?: DailySummary[];
+  spo2Data?: DailySummary[];
 }
 
 function getScoreLabel(score: number): string {
@@ -26,25 +29,33 @@ function getScoreColor(score: number): string {
   return "#ef4444";
 }
 
-function getScoreMessage(score: number, recovery: ReturnType<typeof calculateRecovery>): string {
-  if (!recovery.hasEnoughData) return recovery.message || "";
+function getScoreMessage(score: number): string {
   if (score >= 80) return "Recuperare excelenta. Zi optima pentru antrenament intens.";
-  if (score >= 60) return "Recuperare buna. Poti antrena moderat.";
-  if (score >= 40) return "Recuperare medie. Evita antrenamentul intens.";
+  if (score >= 60) return "Recuperare buna. Antrenament moderat recomandat.";
+  if (score >= 40) return "Recuperare medie. Evita efortul intens.";
   if (score >= 20) return "Recuperare slaba. Prioritizeaza odihna si somnul.";
-  return "Recuperare critica. Corpul tau are nevoie de odihna completa.";
+  return "Recuperare critica. Odihna completa necesara.";
 }
 
-export function HeroScore({ rhrData, hrvData, sleepData }: HeroScoreProps) {
+const COMPONENT_COLORS: Record<string, string> = {
+  "HRV": "#8b5cf6",
+  "Puls repaus": "#ef4444",
+  "Somn": "#3b82f6",
+  "Balanta antrenament": "#f59e0b",
+  "Rata respiratorie": "#06b6d4",
+  "SpO2": "#10b981",
+};
+
+export function HeroScore({ rhrData, hrvData, sleepData, exerciseData, respData, spo2Data }: HeroScoreProps) {
   const recovery = useMemo(() => {
     const allDates = [...rhrData.map(d => d.date), ...hrvData.map(d => d.date)];
     const latestDate = allDates.sort().pop() || "";
-    return calculateRecovery(rhrData, hrvData, sleepData, latestDate);
-  }, [rhrData, hrvData, sleepData]);
+    return calculateRecovery(rhrData, hrvData, sleepData, latestDate, exerciseData, respData, spo2Data);
+  }, [rhrData, hrvData, sleepData, exerciseData, respData, spo2Data]);
 
   if (!recovery.hasEnoughData) {
     return (
-      <div className="glass p-8 text-center">
+      <div className="glass p-6 text-center">
         <p className="text-[var(--muted-strong)] text-sm">{recovery.message}</p>
       </div>
     );
@@ -53,29 +64,28 @@ export function HeroScore({ rhrData, hrvData, sleepData }: HeroScoreProps) {
   const score = recovery.total;
   const color = getScoreColor(score);
   const label = getScoreLabel(score);
-  const message = getScoreMessage(score, recovery);
+  const message = getScoreMessage(score);
+  const activeComponents = recovery.components.filter(c => c.available);
 
-  const size = 180;
+  const size = 160;
   const strokeWidth = 10;
   const radius = (size - strokeWidth * 2) / 2;
   const circumference = 2 * Math.PI * radius;
-  const arcLength = circumference * 0.75; // 270 degrees
+  const arcLength = circumference * 0.75;
   const progress = (score / 100) * arcLength;
 
   return (
-    <div className="glass p-6 animate-in">
-      <div className="flex flex-col sm:flex-row items-center gap-6 sm:gap-8">
-        {/* Gauge */}
+    <div className="glass p-5 animate-in">
+      <div className="flex items-center gap-5">
+        {/* Gauge — compact */}
         <div className="relative shrink-0" style={{ width: size, height: size }}>
           <svg width={size} height={size} className="transform rotate-[135deg]">
-            {/* Background arc */}
             <circle
               cx={size / 2} cy={size / 2} r={radius}
               fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth={strokeWidth}
               strokeDasharray={`${arcLength} ${circumference}`}
               strokeLinecap="round"
             />
-            {/* Progress arc */}
             <circle
               cx={size / 2} cy={size / 2} r={radius}
               fill="none" stroke={color} strokeWidth={strokeWidth}
@@ -84,36 +94,38 @@ export function HeroScore({ rhrData, hrvData, sleepData }: HeroScoreProps) {
               style={{ filter: `drop-shadow(0 0 8px ${color}40)` }}
             />
           </svg>
-          {/* Center text */}
           <div className="absolute inset-0 flex flex-col items-center justify-center">
-            <span className="text-4xl font-bold tabular-nums" style={{ color }}>{score}</span>
-            <span className="text-xs mt-0.5" style={{ color: `${color}90` }}>{label}</span>
+            <span className="text-3xl font-bold tabular-nums" style={{ color }}>{score}</span>
+            <span className="text-[10px] mt-0.5" style={{ color: `${color}90` }}>{label}</span>
           </div>
         </div>
 
-        {/* Details */}
+        {/* Details — compact */}
         <div className="flex-1 min-w-0">
-          <h2 className="text-lg font-semibold mb-1">Scor Recuperare</h2>
-          <p className="text-sm text-[var(--muted-strong)] mb-4">{message}</p>
+          <div className="flex items-center gap-2 mb-1">
+            <h2 className="text-base font-semibold">Scor Recuperare</h2>
+            <span className="text-[9px] px-1.5 py-0.5 rounded-full" style={{
+              background: recovery.confidence === "high" ? "rgba(16,185,129,0.15)" : recovery.confidence === "medium" ? "rgba(245,158,11,0.15)" : "rgba(239,68,68,0.15)",
+              color: recovery.confidence === "high" ? "#10b981" : recovery.confidence === "medium" ? "#f59e0b" : "#ef4444",
+            }}>
+              {recovery.confidence === "high" ? "precizie inalta" : recovery.confidence === "medium" ? "precizie medie" : "date limitate"}
+            </span>
+          </div>
+          <p className="text-xs text-[var(--muted-strong)] mb-3">{message}</p>
 
-          <div className="space-y-3">
-            {[
-              { label: "HRV", score: recovery.hrvScore, weight: "40%", color: "#8b5cf6" },
-              { label: "Puls repaus", score: recovery.rhrScore, weight: "30%", color: "#ef4444" },
-              { label: "Somn", score: recovery.sleepScore, weight: "30%", color: "#3b82f6" },
-            ].map((item) => (
-              <div key={item.label}>
-                <div className="flex justify-between text-xs mb-1">
-                  <span className="text-[var(--muted)]">{item.label} ({item.weight})</span>
-                  <span className="tabular-nums font-medium">{item.score}</span>
+          <div className="space-y-2">
+            {activeComponents.map((comp) => (
+              <div key={comp.name}>
+                <div className="flex justify-between text-[10px] mb-0.5">
+                  <span className="text-[var(--muted)]">{comp.name} ({comp.weight}%)</span>
+                  <span className="tabular-nums font-medium">{comp.score}</span>
                 </div>
-                <div className="h-1.5 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.06)" }}>
+                <div className="h-1 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.06)" }}>
                   <div
                     className="h-full rounded-full"
                     style={{
-                      width: `${item.score}%`,
-                      background: `linear-gradient(90deg, ${item.color}60, ${item.color})`,
-                      boxShadow: `0 0 8px ${item.color}30`,
+                      width: `${comp.score}%`,
+                      background: `linear-gradient(90deg, ${COMPONENT_COLORS[comp.name] || "#888"}60, ${COMPONENT_COLORS[comp.name] || "#888"})`,
                     }}
                   />
                 </div>

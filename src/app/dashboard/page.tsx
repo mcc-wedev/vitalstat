@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useHealthStore, getDateBounds, filterByDate, filterSleepByDate } from "@/stores/healthStore";
 import { MetricCard } from "@/components/MetricCard";
@@ -9,17 +9,18 @@ import { SleepChart } from "@/components/SleepChart";
 import { HeroScore } from "@/components/HeroScore";
 import { InsightsPanel } from "@/components/InsightsPanel";
 import { DateRangePicker } from "@/components/DateRangePicker";
+import { DailyReport } from "@/components/DailyReport";
 import { METRIC_CONFIG, CATEGORIES, type MetricCategory } from "@/lib/parser/healthTypes";
 import type { DailySummary, SleepNight } from "@/lib/parser/healthTypes";
 import { clearData, exportAllData } from "@/lib/db/indexedDB";
 
 const TABS: { key: MetricCategory | "overview"; label: string }[] = [
   { key: "overview", label: "Sumar" },
-  { key: "cardio", label: "Cardiovascular" },
+  { key: "cardio", label: "Cardio" },
   { key: "sleep", label: "Somn" },
   { key: "activity", label: "Activitate" },
   { key: "mobility", label: "Mobilitate" },
-  { key: "body", label: "Corp & Nutritie" },
+  { key: "body", label: "Corp" },
   { key: "wellbeing", label: "Wellbeing" },
 ];
 
@@ -42,6 +43,14 @@ export default function Dashboard() {
   }, [metrics, bounds]);
   const filteredSleep = useMemo(() => filterSleepByDate(sleepNights, bounds), [sleepNights, bounds]);
 
+  // Is single-day view? (today or yesterday)
+  const isDailyView = datePreset === "today" || datePreset === "yesterday";
+  const dailyDate = useMemo(() => {
+    if (datePreset === "today") return new Date().toISOString().substring(0, 10);
+    if (datePreset === "yesterday") return new Date(Date.now() - 86400000).toISOString().substring(0, 10);
+    return null;
+  }, [datePreset]);
+
   if (!hasData || !meta) return null;
 
   const handleReset = async () => {
@@ -61,7 +70,6 @@ export default function Dashboard() {
     URL.revokeObjectURL(url);
   };
 
-  // Get available metrics for a category
   const metricsForCategory = (cat: MetricCategory) =>
     Object.entries(METRIC_CONFIG)
       .filter(([key, cfg]) => cfg.category === cat && filteredMetrics[key]?.length > 0)
@@ -69,10 +77,9 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen flex flex-col bg-gradient-subtle">
-      {/* Header — mobile: stacked layout */}
+      {/* Header */}
       <header className="sticky top-0 z-50 backdrop-blur-xl border-b border-[var(--glass-border)] bg-[rgba(5,5,8,0.85)]">
         <div className="max-w-6xl mx-auto px-3 sm:px-4">
-          {/* Top row: logo + actions */}
           <div className="flex items-center justify-between py-2.5">
             <div className="flex items-center gap-2">
               <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{ background: "rgba(16,185,129,0.15)" }}>
@@ -82,18 +89,11 @@ export default function Dashboard() {
               </div>
               <h1 className="text-sm sm:text-base font-bold">VitalStat</h1>
             </div>
-
             <div className="flex items-center gap-2">
-              <button onClick={handleExport} className="pill text-[10px]" title="Exporta date JSON">
-                📤
-              </button>
-              <button onClick={handleReset} className="text-[10px] text-red-400/60 hover:text-red-400 px-2">
-                Sterge
-              </button>
+              <button onClick={handleExport} className="pill text-[10px]" title="Exporta date JSON">📤</button>
+              <button onClick={handleReset} className="text-[10px] text-red-400/60 hover:text-red-400 px-2">Sterge</button>
             </div>
           </div>
-
-          {/* Date picker row */}
           <div className="flex items-center justify-between pb-2 gap-2">
             <DateRangePicker />
             <span className="hidden sm:inline text-[10px] text-[var(--muted)] shrink-0">
@@ -103,77 +103,128 @@ export default function Dashboard() {
         </div>
       </header>
 
-      {/* Tabs — smooth scroll, no overflow visible */}
-      <nav className="border-b border-[var(--glass-border)] bg-[rgba(5,5,8,0.5)]">
-        <div className="max-w-6xl mx-auto px-3 sm:px-4 tab-scroll flex">
-          {TABS.map((tab) => (
-            <button
-              key={tab.key}
-              onClick={() => setActiveTab(tab.key)}
-              className={`tab-btn ${activeTab === tab.key ? "tab-active" : ""}`}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
-      </nav>
+      {/* Daily view: no tabs, show DailyReport directly */}
+      {isDailyView && dailyDate ? (
+        <main className="flex-1 max-w-6xl mx-auto w-full px-3 sm:px-4 py-4 sm:py-6">
+          <DailyReport date={dailyDate} metrics={metrics} sleepNights={sleepNights} />
+        </main>
+      ) : (
+        <>
+          {/* Tabs */}
+          <nav className="border-b border-[var(--glass-border)] bg-[rgba(5,5,8,0.5)]">
+            <div className="max-w-6xl mx-auto px-3 sm:px-4 tab-scroll flex">
+              {TABS.map((tab) => (
+                <button
+                  key={tab.key}
+                  onClick={() => setActiveTab(tab.key)}
+                  className={`tab-btn ${activeTab === tab.key ? "tab-active" : ""}`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+          </nav>
 
-      {/* Content */}
-      <main className="flex-1 max-w-6xl mx-auto w-full px-3 sm:px-4 py-4 sm:py-6">
-        {activeTab === "overview" && (
-          <OverviewTab metrics={filteredMetrics} sleepNights={filteredSleep} metricsForCategory={metricsForCategory} />
-        )}
-        {activeTab === "sleep" && (
-          <SleepTab metrics={filteredMetrics} sleepNights={filteredSleep} />
-        )}
-        {activeTab !== "overview" && activeTab !== "sleep" && (
-          <CategoryTab
-            category={activeTab}
-            metrics={filteredMetrics}
-            sleepNights={filteredSleep}
-            availableKeys={metricsForCategory(activeTab)}
-          />
-        )}
-      </main>
+          {/* Content */}
+          <main className="flex-1 max-w-6xl mx-auto w-full px-3 sm:px-4 py-4 sm:py-6">
+            {activeTab === "overview" && (
+              <OverviewTab metrics={filteredMetrics} sleepNights={filteredSleep} allMetrics={metrics} allSleep={sleepNights} metricsForCategory={metricsForCategory} />
+            )}
+            {activeTab === "sleep" && (
+              <SleepTab metrics={filteredMetrics} sleepNights={filteredSleep} />
+            )}
+            {activeTab !== "overview" && activeTab !== "sleep" && (
+              <CategoryTab
+                category={activeTab}
+                metrics={filteredMetrics}
+                sleepNights={filteredSleep}
+                availableKeys={metricsForCategory(activeTab)}
+              />
+            )}
+          </main>
+        </>
+      )}
     </div>
   );
 }
 
-// ═══ OVERVIEW TAB ═══
+// ═══ COMPACT OVERVIEW TAB ═══
 function OverviewTab({
-  metrics, sleepNights, metricsForCategory,
+  metrics, sleepNights, allMetrics, allSleep, metricsForCategory,
 }: {
   metrics: Record<string, DailySummary[]>;
   sleepNights: SleepNight[];
+  allMetrics: Record<string, DailySummary[]>;
+  allSleep: SleepNight[];
   metricsForCategory: (cat: MetricCategory) => string[];
 }) {
-  return (
-    <div className="space-y-8">
-      {/* Hero Score */}
-      <HeroScore
-        rhrData={metrics.restingHeartRate || []}
-        hrvData={metrics.hrv || []}
-        sleepData={sleepNights}
-      />
+  const [showAllInsights, setShowAllInsights] = useState(false);
 
-      {/* Top Insights */}
+  // Key metrics to always show on overview (if data exists)
+  const keyMetrics = ["restingHeartRate", "hrv", "oxygenSaturation", "vo2Max", "stepCount", "activeEnergy", "exerciseTime", "bodyMass"]
+    .filter(k => metrics[k]?.length > 0);
+
+  return (
+    <div className="space-y-5">
+      {/* Row 1: Recovery Score + Top Insights side-by-side */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <HeroScore
+          rhrData={allMetrics.restingHeartRate || []}
+          hrvData={allMetrics.hrv || []}
+          sleepData={allSleep}
+          exerciseData={allMetrics.exerciseTime}
+          respData={allMetrics.respiratoryRate}
+          spo2Data={allMetrics.oxygenSaturation}
+        />
+        <div className="glass p-4">
+          <h3 className="text-xs font-semibold text-[var(--muted-strong)] mb-3">Interpretari prioritare</h3>
+          <InsightsPanel metrics={metrics} sleepNights={sleepNights} maxItems={3} compact />
+        </div>
+      </div>
+
+      {/* Row 2: Key metric cards */}
       <section>
-        <h2 className="section-header">Interpretari cheie</h2>
-        <InsightsPanel metrics={metrics} sleepNights={sleepNights} maxItems={5} />
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          {keyMetrics.map((key) => (
+            <MetricCard key={key} metricKey={key} data={metrics[key]} />
+          ))}
+        </div>
       </section>
 
-      {/* Metric cards — grouped by category */}
+      {/* Row 3: Two trend charts side by side */}
+      <section>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {metrics.restingHeartRate?.length > 0 && <TrendChart metricKey="restingHeartRate" data={metrics.restingHeartRate} />}
+          {metrics.hrv?.length > 0 && <TrendChart metricKey="hrv" data={metrics.hrv} />}
+        </div>
+      </section>
+
+      {/* Row 4: All insights (expandable) */}
+      {!showAllInsights ? (
+        <button
+          onClick={() => setShowAllInsights(true)}
+          className="w-full glass p-3 text-center text-xs text-[var(--accent)] hover:text-white cursor-pointer"
+        >
+          Vezi toate interpretarile →
+        </button>
+      ) : (
+        <section>
+          <h2 className="section-header">Toate interpretarile</h2>
+          <InsightsPanel metrics={metrics} sleepNights={sleepNights} />
+        </section>
+      )}
+
+      {/* Additional metric cards by category (collapsed) */}
       {(Object.keys(CATEGORIES) as MetricCategory[]).map((cat) => {
-        const keys = metricsForCategory(cat);
+        const keys = metricsForCategory(cat).filter(k => !keyMetrics.includes(k));
         if (keys.length === 0) return null;
-        const catInfo = CATEGORIES[cat];
         return (
           <section key={cat}>
             <h2 className="section-header flex items-center gap-2">
-              <span>{catInfo.icon}</span> {catInfo.label}
+              <span>{CATEGORIES[cat].icon}</span> {CATEGORIES[cat].label}
               <span className="text-[var(--muted)] font-normal">({keys.length})</span>
             </h2>
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
               {keys.map((key) => (
                 <MetricCard key={key} metricKey={key} data={metrics[key]} />
               ))}
@@ -181,17 +232,6 @@ function OverviewTab({
           </section>
         );
       })}
-
-      {/* Key trend charts */}
-      <section>
-        <h2 className="section-header">Trenduri principale</h2>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {metrics.restingHeartRate?.length > 0 && <TrendChart metricKey="restingHeartRate" data={metrics.restingHeartRate} />}
-          {metrics.hrv?.length > 0 && <TrendChart metricKey="hrv" data={metrics.hrv} />}
-          {metrics.stepCount?.length > 0 && <TrendChart metricKey="stepCount" data={metrics.stepCount} />}
-          {metrics.vo2Max?.length > 0 && <TrendChart metricKey="vo2Max" data={metrics.vo2Max} />}
-        </div>
-      </section>
     </div>
   );
 }
@@ -199,7 +239,7 @@ function OverviewTab({
 // ═══ SLEEP TAB ═══
 function SleepTab({ metrics, sleepNights }: { metrics: Record<string, DailySummary[]>; sleepNights: SleepNight[] }) {
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       <InsightsPanel metrics={metrics} sleepNights={sleepNights} filter="sleep" />
       <SleepChart data={sleepNights} days={sleepNights.length} />
     </div>
@@ -215,28 +255,18 @@ function CategoryTab({
   sleepNights: SleepNight[];
   availableKeys: string[];
 }) {
-  const catFilter = category === "body" ? undefined : category; // body+nutrition combined
-
   return (
-    <div className="space-y-8">
-      {/* Insights for this category */}
-      <InsightsPanel metrics={metrics} sleepNights={sleepNights} filter={catFilter} />
+    <div className="space-y-6">
+      <InsightsPanel metrics={metrics} sleepNights={sleepNights} filter={category === "body" ? undefined : category} />
+      {category === "body" && <InsightsPanel metrics={metrics} sleepNights={sleepNights} filter="nutrition" />}
 
-      {/* For body tab, also show nutrition */}
-      {category === "body" && (
-        <InsightsPanel metrics={metrics} sleepNights={sleepNights} filter="nutrition" />
-      )}
-
-      {/* Metric cards */}
       {availableKeys.length > 0 ? (
         <>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
             {availableKeys.map((key) => (
               <MetricCard key={key} metricKey={key} data={metrics[key]} />
             ))}
           </div>
-
-          {/* Trend charts for top 4 metrics */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {availableKeys.slice(0, 4).map((key) => (
               <TrendChart key={key} metricKey={key} data={metrics[key]} />
@@ -250,7 +280,6 @@ function CategoryTab({
         </div>
       )}
 
-      {/* If body tab, also show nutrition metrics */}
       {category === "body" && (() => {
         const nutritionKeys = Object.entries(METRIC_CONFIG)
           .filter(([key, cfg]) => cfg.category === "nutrition" && metrics[key]?.length > 0)
@@ -259,7 +288,7 @@ function CategoryTab({
         return (
           <section>
             <h2 className="section-header">{CATEGORIES.nutrition.icon} {CATEGORIES.nutrition.label}</h2>
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
               {nutritionKeys.map((key) => (
                 <MetricCard key={key} metricKey={key} data={metrics[key]} />
               ))}

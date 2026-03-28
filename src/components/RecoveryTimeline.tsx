@@ -13,20 +13,19 @@ interface Props {
   exerciseData?: DailySummary[];
   respData?: DailySummary[];
   spo2Data?: DailySummary[];
+  tempData?: DailySummary[];
 }
 
-export function RecoveryTimeline({ rhrData, hrvData, sleepData, exerciseData, respData, spo2Data }: Props) {
+export function RecoveryTimeline({ rhrData, hrvData, sleepData, exerciseData, respData, spo2Data, tempData }: Props) {
   const data = useMemo(() => {
-    // Get all unique dates that have at least RHR + HRV
     const rhrDates = new Set(rhrData.map(d => d.date));
     const hrvDates = new Set(hrvData.map(d => d.date));
     const allDates = [...rhrDates].filter(d => hrvDates.has(d)).sort();
 
-    // Skip first 14 days (baseline needed)
     const scoreDates = allDates.slice(14);
 
     const scores = scoreDates.map(date => {
-      const r = calculateRecovery(rhrData, hrvData, sleepData, date, exerciseData, respData, spo2Data);
+      const r = calculateRecovery(rhrData, hrvData, sleepData, date, exerciseData, respData, spo2Data, tempData);
       return { date, score: r.hasEnoughData ? r.total : null };
     }).filter(d => d.score !== null) as { date: string; score: number }[];
 
@@ -42,7 +41,7 @@ export function RecoveryTimeline({ rhrData, hrvData, sleepData, exerciseData, re
       avg7: smoothed[i] !== null ? Math.round(smoothed[i]!) : null,
       label: d.date.substring(5), // MM-DD
     }));
-  }, [rhrData, hrvData, sleepData, exerciseData, respData, spo2Data]);
+  }, [rhrData, hrvData, sleepData, exerciseData, respData, spo2Data, tempData]);
 
   if (data.length < 7) return null;
 

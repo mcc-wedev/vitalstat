@@ -184,6 +184,7 @@ function OverviewTab({
           exerciseData={allMetrics.exerciseTime}
           respData={allMetrics.respiratoryRate}
           spo2Data={allMetrics.oxygenSaturation}
+          tempData={allMetrics.wristTemperature}
         />
         <div className="glass p-4">
           <h3 className="text-xs font-semibold text-[var(--muted-strong)] mb-3">Interpretari prioritare</h3>
@@ -222,6 +223,7 @@ function OverviewTab({
         exerciseData={allMetrics.exerciseTime}
         respData={allMetrics.respiratoryRate}
         spo2Data={allMetrics.oxygenSaturation}
+        tempData={allMetrics.wristTemperature}
       />
 
       {/* Row 6: Calendar Heatmap */}

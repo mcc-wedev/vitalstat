@@ -11,6 +11,7 @@ interface HeroScoreProps {
   exerciseData?: DailySummary[];
   respData?: DailySummary[];
   spo2Data?: DailySummary[];
+  tempData?: DailySummary[];
 }
 
 function getScoreLabel(score: number): string {
@@ -42,16 +43,18 @@ const COMPONENT_COLORS: Record<string, string> = {
   "Puls repaus": "#ef4444",
   "Somn": "#3b82f6",
   "Balanta antrenament": "#f59e0b",
+  "Efort ieri": "#f97316",
   "Rata respiratorie": "#06b6d4",
   "SpO2": "#10b981",
+  "Temperatura": "#ec4899",
 };
 
-export function HeroScore({ rhrData, hrvData, sleepData, exerciseData, respData, spo2Data }: HeroScoreProps) {
+export function HeroScore({ rhrData, hrvData, sleepData, exerciseData, respData, spo2Data, tempData }: HeroScoreProps) {
   const recovery = useMemo(() => {
     const allDates = [...rhrData.map(d => d.date), ...hrvData.map(d => d.date)];
     const latestDate = allDates.sort().pop() || "";
-    return calculateRecovery(rhrData, hrvData, sleepData, latestDate, exerciseData, respData, spo2Data);
-  }, [rhrData, hrvData, sleepData, exerciseData, respData, spo2Data]);
+    return calculateRecovery(rhrData, hrvData, sleepData, latestDate, exerciseData, respData, spo2Data, tempData);
+  }, [rhrData, hrvData, sleepData, exerciseData, respData, spo2Data, tempData]);
 
   if (!recovery.hasEnoughData) {
     return (

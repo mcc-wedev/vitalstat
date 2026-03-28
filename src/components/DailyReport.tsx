@@ -66,6 +66,7 @@ export function DailyReport({ date, metrics, sleepNights }: DailyReportProps) {
       metrics.exerciseTime,
       metrics.respiratoryRate,
       metrics.oxygenSaturation,
+      metrics.wristTemperature,
     );
   }, [metrics, sleepNights, date]);
 

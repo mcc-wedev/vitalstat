@@ -23,6 +23,14 @@ import { StabilityScores } from "@/components/StabilityScores";
 import { SleepBank } from "@/components/SleepBank";
 import { BiologicalAge } from "@/components/BiologicalAge";
 import { MonthlyRecap } from "@/components/MonthlyRecap";
+import { WhatIfSimulator } from "@/components/WhatIfSimulator";
+import { TrendAlerts } from "@/components/TrendAlerts";
+import { AgeBenchmark } from "@/components/AgeBenchmark";
+import { RecoveryPrediction } from "@/components/RecoveryPrediction";
+import { SmartSleepTips } from "@/components/SmartSleepTips";
+import { ShareCard } from "@/components/ShareCard";
+import { CSVExport } from "@/components/CSVExport";
+import { CircadianMap } from "@/components/CircadianMap";
 import { METRIC_CONFIG, CATEGORIES, type MetricCategory } from "@/lib/parser/healthTypes";
 import type { DailySummary, SleepNight } from "@/lib/parser/healthTypes";
 import { Onboarding } from "@/components/Onboarding";
@@ -104,8 +112,10 @@ export default function Dashboard() {
               </div>
               <h1 className="text-sm sm:text-base font-bold">VitalStat</h1>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1">
+              <ShareCard metrics={metrics} sleepNights={sleepNights} />
               <PDFExport metrics={metrics} sleepNights={sleepNights} />
+              <CSVExport metrics={metrics} sleepNights={sleepNights} />
               <button onClick={handleExport} className="pill text-[10px]" title="Exporta date JSON">📤</button>
               <button onClick={handleReset} className="text-[10px] text-red-400/60 hover:text-red-400 px-2">Sterge</button>
             </div>
@@ -147,7 +157,7 @@ export default function Dashboard() {
               <OverviewTab metrics={filteredMetrics} sleepNights={filteredSleep} allMetrics={metrics} allSleep={sleepNights} metricsForCategory={metricsForCategory} />
             )}
             {activeTab === "sleep" && (
-              <SleepTab metrics={filteredMetrics} sleepNights={filteredSleep} />
+              <SleepTab metrics={filteredMetrics} sleepNights={filteredSleep} allSleep={sleepNights} />
             )}
             {activeTab !== "overview" && activeTab !== "sleep" && (
               <CategoryTab
@@ -208,6 +218,12 @@ function OverviewTab({
         </div>
       </section>
 
+      {/* Trend Alerts (appear only when something is wrong) */}
+      <TrendAlerts metrics={metrics} sleepNights={sleepNights} />
+
+      {/* Recovery Prediction (appears only when recovery is low) */}
+      <RecoveryPrediction metrics={allMetrics} sleepNights={allSleep} />
+
       {/* Row 3: Strain Coach + Biological Age */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <StrainCoach metrics={allMetrics} sleepNights={allSleep} />
@@ -239,6 +255,12 @@ function OverviewTab({
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <BehaviorJournal metrics={allMetrics} sleepNights={allSleep} />
         <MonthlyRecap metrics={allMetrics} sleepNights={allSleep} />
+      </div>
+
+      {/* Row 8: What-If Simulator + Age Benchmark */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <WhatIfSimulator metrics={allMetrics} sleepNights={allSleep} />
+        <AgeBenchmark metrics={allMetrics} />
       </div>
 
       {/* Row 8: Recovery Timeline */}
@@ -296,10 +318,14 @@ function OverviewTab({
 }
 
 // ═══ SLEEP TAB ═══
-function SleepTab({ metrics, sleepNights }: { metrics: Record<string, DailySummary[]>; sleepNights: SleepNight[] }) {
+function SleepTab({ metrics, sleepNights, allSleep }: { metrics: Record<string, DailySummary[]>; sleepNights: SleepNight[]; allSleep: SleepNight[] }) {
   return (
     <div className="space-y-6">
       <InsightsPanel metrics={metrics} sleepNights={sleepNights} filter="sleep" />
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <SmartSleepTips metrics={metrics} sleepNights={allSleep} />
+        <CircadianMap sleepNights={allSleep} />
+      </div>
       <SleepChart data={sleepNights} days={sleepNights.length} />
     </div>
   );

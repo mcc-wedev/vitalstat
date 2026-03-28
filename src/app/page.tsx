@@ -1,65 +1,80 @@
-import Image from "next/image";
+"use client";
+
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { FileUpload } from "@/components/FileUpload";
+import { useHealthStore } from "@/stores/healthStore";
+import { hasData, getMeta, getMetricData, getSleepData } from "@/lib/db/indexedDB";
+import type { DailySummary } from "@/lib/parser/healthTypes";
 
 export default function Home() {
+  const router = useRouter();
+  const { hasData: storeHasData, setData, setLoading } = useHealthStore();
+
+  // Check for existing data in IndexedDB on mount
+  useEffect(() => {
+    async function checkExisting() {
+      const exists = await hasData();
+      if (exists) {
+        setLoading(true);
+        const meta = await getMeta();
+        if (meta) {
+          const metrics: Record<string, DailySummary[]> = {};
+          for (const key of meta.availableMetrics) {
+            if (key === "sleepAnalysis") continue;
+            metrics[key] = await getMetricData(key);
+          }
+          const sleep = await getSleepData();
+          setData(metrics, sleep, meta);
+        }
+      }
+    }
+    checkExisting();
+  }, [setData, setLoading]);
+
+  // Redirect to dashboard when data is loaded
+  useEffect(() => {
+    if (storeHasData) {
+      router.push("/dashboard");
+    }
+  }, [storeHasData, router]);
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <main className="flex-1 flex flex-col items-center justify-center px-4 py-16">
+      <div className="text-center mb-12">
+        <div className="flex items-center justify-center gap-3 mb-4">
+          <svg className="w-10 h-10 text-accent" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12z" />
+          </svg>
+          <h1 className="text-4xl font-bold tracking-tight">VitalStat</h1>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
+        <p className="text-muted text-lg max-w-md mx-auto">
+          Statistical health intelligence from your Apple Watch.
+          <br />
+          <span className="text-sm">Privacy-first. Zero server. All data stays on your device.</span>
+        </p>
+      </div>
+
+      <FileUpload />
+
+      <div className="mt-16 grid grid-cols-2 sm:grid-cols-4 gap-6 max-w-2xl w-full text-center">
+        {[
+          { icon: "♥", label: "Recovery Score", desc: "Like WHOOP, free" },
+          { icon: "📊", label: "Trend Analysis", desc: "CI bands + anomalies" },
+          { icon: "🌙", label: "Sleep Intelligence", desc: "Stages & regularity" },
+          { icon: "🔒", label: "100% Private", desc: "Never leaves device" },
+        ].map((f) => (
+          <div key={f.label} className="p-4">
+            <div className="text-2xl mb-2">{f.icon}</div>
+            <p className="text-sm font-medium">{f.label}</p>
+            <p className="text-xs text-muted mt-1">{f.desc}</p>
+          </div>
+        ))}
+      </div>
+
+      <footer className="mt-16 text-muted text-xs">
+        How to export: iPhone → Health app → Profile → Export All Health Data
+      </footer>
+    </main>
   );
 }

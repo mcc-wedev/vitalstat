@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useRef } from "react";
 import JSZip from "jszip";
-import { parseHealthXML } from "@/lib/parser/xmlParser";
+import { parseHealthBuffer } from "@/lib/parser/xmlParser";
 import { saveHealthData } from "@/lib/db/indexedDB";
 import { useHealthStore } from "@/stores/healthStore";
 
@@ -21,47 +21,51 @@ export function FileUpload() {
       setStatus("Reading file...");
 
       try {
-        let xmlText: string;
+        let buffer: ArrayBuffer;
 
         if (file.name.endsWith(".zip")) {
           setStatus("Extracting ZIP...");
           const zip = await JSZip.loadAsync(file);
+
           // Search for export.xml in any path
           let xmlFile = zip.file("apple_health_export/export.xml")
             || zip.file("export.xml");
           if (!xmlFile) {
-            // Fallback: find any file named export.xml
             const allFiles = Object.keys(zip.files);
-            const found = allFiles.find((f) => f.endsWith("export.xml"));
+            const found = allFiles.find((f) => f.endsWith("export.xml") && !f.endsWith("export_cda.xml"));
             if (found) xmlFile = zip.file(found);
           }
           if (!xmlFile) {
             const allFiles = Object.keys(zip.files).slice(0, 10).join(", ");
-            throw new Error(`No export.xml found in ZIP. Files found: ${allFiles}`);
+            throw new Error(`No export.xml found in ZIP. Files: ${allFiles}`);
           }
-          setStatus("Decompressing XML...");
-          xmlText = await xmlFile.async("string");
+
+          setStatus("Decompressing XML (this may take a moment)...");
+          buffer = await xmlFile.async("arraybuffer");
         } else if (file.name.endsWith(".xml")) {
-          xmlText = await file.text();
+          setStatus("Reading XML file...");
+          buffer = await file.arrayBuffer();
         } else {
           throw new Error("Please upload a .zip or .xml file");
         }
 
-        const sizeMB = (xmlText.length / 1024 / 1024).toFixed(0);
+        const sizeMB = (buffer.byteLength / 1024 / 1024).toFixed(0);
         setStatus(`Parsing ${sizeMB}MB of health data...`);
 
-        if (xmlText.length < 100) {
-          throw new Error(`XML file seems empty or too small (${xmlText.length} bytes)`);
+        if (buffer.byteLength < 100) {
+          throw new Error(`XML file seems empty (${buffer.byteLength} bytes)`);
         }
 
-        parseHealthXML(
-          xmlText,
+        parseHealthBuffer(
+          buffer,
           (percent) => {
             setParseProgress(percent);
-            if (percent < 90) {
+            if (percent < 85) {
               setStatus(`Parsing records... ${percent}%`);
-            } else {
+            } else if (percent < 95) {
               setStatus("Computing daily summaries...");
+            } else {
+              setStatus("Almost done...");
             }
           },
           async (result) => {

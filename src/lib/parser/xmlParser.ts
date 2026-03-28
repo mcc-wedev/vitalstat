@@ -12,7 +12,6 @@ type ErrorCallback = (error: string) => void;
 
 function getBasePath(): string {
   if (typeof window !== "undefined") {
-    // Detect basePath from current URL
     const path = window.location.pathname;
     const match = path.match(/^(\/[^/]+)\//);
     if (match) return match[1];
@@ -21,10 +20,10 @@ function getBasePath(): string {
 }
 
 /**
- * Parse Apple Health XML via Web Worker
+ * Parse Apple Health XML via Web Worker using ArrayBuffer (handles 500MB+ files)
  */
-export function parseHealthXML(
-  xmlText: string,
+export function parseHealthBuffer(
+  buffer: ArrayBuffer,
   onProgress: ProgressCallback,
   onComplete: CompleteCallback,
   onError?: ErrorCallback
@@ -37,7 +36,7 @@ export function parseHealthXML(
     worker = new Worker(workerUrl);
   } catch (err) {
     console.error("Failed to create worker at", workerUrl, err);
-    onError?.(`Failed to load parser. URL: ${workerUrl}`);
+    onError?.(`Failed to load parser worker`);
     return;
   }
 
@@ -60,5 +59,6 @@ export function parseHealthXML(
     worker.terminate();
   };
 
-  worker.postMessage({ xmlText });
+  // Transfer the buffer (zero-copy) to the worker
+  worker.postMessage({ buffer }, [buffer]);
 }

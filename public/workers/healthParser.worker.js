@@ -1,9 +1,8 @@
 /**
  * Web Worker for parsing Apple Health XML export
- * Uses SAX-style string parsing (no DOMParser — too slow for large files)
+ * Processes in chunks to handle files >500MB
  */
 
-// All quantity type identifiers we track
 const TRACKED_QUANTITY_TYPES = new Set([
   "HKQuantityTypeIdentifierHeartRate",
   "HKQuantityTypeIdentifierHeartRateVariabilitySDNN",
@@ -34,7 +33,6 @@ const TRACKED_QUANTITY_TYPES = new Set([
 
 const SLEEP_TYPE = "HKCategoryTypeIdentifierSleepAnalysis";
 
-// Short key mapping
 const TYPE_TO_KEY = {
   HKQuantityTypeIdentifierHeartRate: "heartRate",
   HKQuantityTypeIdentifierHeartRateVariabilitySDNN: "hrv",
@@ -65,83 +63,113 @@ const TYPE_TO_KEY = {
 };
 
 function extractAttr(tag, attrName) {
-  const pattern = new RegExp(`${attrName}="([^"]*)"`, "i");
-  const match = tag.match(pattern);
-  return match ? match[1] : "";
+  const idx = tag.indexOf(attrName + '="');
+  if (idx === -1) return "";
+  const start = idx + attrName.length + 2;
+  const end = tag.indexOf('"', start);
+  return end === -1 ? "" : tag.substring(start, end);
 }
 
 function parseHealthDate(dateStr) {
-  // Format: "2024-01-15 08:30:00 -0500"
   if (!dateStr) return "";
   return dateStr.replace(" ", "T").replace(/ ([+-]\d{4})$/, "$1");
 }
 
 self.onmessage = function (e) {
-  const { xmlText } = e.data;
-  const totalLength = xmlText.length;
-  let processed = 0;
-  let lastProgressReport = 0;
+  const { buffer } = e.data;
+  const totalSize = buffer.byteLength;
+  const CHUNK_SIZE = 32 * 1024 * 1024; // 32MB chunks
+  const decoder = new TextDecoder("utf-8");
 
-  // Accumulate daily data
-  const dailyData = {}; // { metricKey: { "YYYY-MM-DD": [values] } }
-  const sleepRecords = []; // raw sleep records
+  const dailyData = {};
+  const sleepRecords = [];
   let totalRecords = 0;
   let minDate = "9999-99-99";
   let maxDate = "0000-00-00";
   const availableMetrics = new Set();
 
-  // Parse Records using regex (much faster than DOM for large files)
-  const recordRegex = /<Record\s[^>]*\/>/g;
-  let match;
+  let leftover = "";
+  let bytesProcessed = 0;
 
-  while ((match = recordRegex.exec(xmlText)) !== null) {
-    const tag = match[0];
-    const type = extractAttr(tag, "type");
+  self.postMessage({ type: "progress", percent: 1 });
 
-    // Progress reporting every 2%
-    processed = match.index;
-    const pct = Math.floor((processed / totalLength) * 100);
-    if (pct > lastProgressReport + 1) {
-      lastProgressReport = pct;
-      self.postMessage({ type: "progress", percent: pct });
-    }
+  for (let offset = 0; offset < totalSize; offset += CHUNK_SIZE) {
+    const end = Math.min(offset + CHUNK_SIZE, totalSize);
+    const chunk = new Uint8Array(buffer, offset, end - offset);
+    const isLast = end >= totalSize;
+    const decoded = decoder.decode(chunk, { stream: !isLast });
 
-    if (type === SLEEP_TYPE) {
-      const value = extractAttr(tag, "value");
+    const text = leftover + decoded;
+
+    // Find all <Record .../> tags in this chunk
+    // We need to handle tags that span chunk boundaries
+    let lastRecordEnd = 0;
+    let searchStart = 0;
+
+    while (true) {
+      const recordStart = text.indexOf("<Record ", searchStart);
+      if (recordStart === -1) break;
+
+      const recordEnd = text.indexOf("/>", recordStart);
+      if (recordEnd === -1) {
+        // Incomplete tag — save as leftover for next chunk
+        break;
+      }
+
+      const tag = text.substring(recordStart, recordEnd + 2);
+      lastRecordEnd = recordEnd + 2;
+      searchStart = lastRecordEnd;
+
+      const type = extractAttr(tag, "type");
+
+      if (type === SLEEP_TYPE) {
+        const value = extractAttr(tag, "value");
+        const startDate = parseHealthDate(extractAttr(tag, "startDate"));
+        const endDate = parseHealthDate(extractAttr(tag, "endDate"));
+        const sourceName = extractAttr(tag, "sourceName");
+        sleepRecords.push({ stage: value, startDate, endDate, sourceName });
+        totalRecords++;
+        const dateKey = startDate.substring(0, 10);
+        if (dateKey < minDate) minDate = dateKey;
+        if (dateKey > maxDate) maxDate = dateKey;
+        availableMetrics.add("sleepAnalysis");
+        continue;
+      }
+
+      if (!TRACKED_QUANTITY_TYPES.has(type)) continue;
+
+      const value = parseFloat(extractAttr(tag, "value"));
+      if (isNaN(value)) continue;
+
       const startDate = parseHealthDate(extractAttr(tag, "startDate"));
-      const endDate = parseHealthDate(extractAttr(tag, "endDate"));
-      const sourceName = extractAttr(tag, "sourceName");
-
-      sleepRecords.push({ stage: value, startDate, endDate, sourceName });
-      totalRecords++;
-
+      const key = TYPE_TO_KEY[type];
       const dateKey = startDate.substring(0, 10);
+
+      if (!dailyData[key]) dailyData[key] = {};
+      if (!dailyData[key][dateKey]) dailyData[key][dateKey] = [];
+      dailyData[key][dateKey].push(value);
+
+      totalRecords++;
       if (dateKey < minDate) minDate = dateKey;
       if (dateKey > maxDate) maxDate = dateKey;
-      availableMetrics.add("sleepAnalysis");
-      continue;
+      availableMetrics.add(key);
     }
 
-    if (!TRACKED_QUANTITY_TYPES.has(type)) continue;
+    // Keep leftover: from last complete record end (or from last <Record that didn't close)
+    const lastOpenRecord = text.lastIndexOf("<Record ");
+    if (lastOpenRecord !== -1 && lastOpenRecord >= lastRecordEnd) {
+      // There's an unclosed <Record tag
+      leftover = text.substring(lastOpenRecord);
+    } else {
+      leftover = "";
+    }
 
-    const value = parseFloat(extractAttr(tag, "value"));
-    if (isNaN(value)) continue;
-
-    const startDate = parseHealthDate(extractAttr(tag, "startDate"));
-    const key = TYPE_TO_KEY[type];
-    const dateKey = startDate.substring(0, 10);
-
-    if (!dailyData[key]) dailyData[key] = {};
-    if (!dailyData[key][dateKey]) dailyData[key][dateKey] = [];
-    dailyData[key][dateKey].push(value);
-
-    totalRecords++;
-    if (dateKey < minDate) minDate = dateKey;
-    if (dateKey > maxDate) maxDate = dateKey;
-    availableMetrics.add(key);
+    bytesProcessed = end;
+    const pct = Math.floor((bytesProcessed / totalSize) * 85);
+    self.postMessage({ type: "progress", percent: Math.max(2, pct) });
   }
 
-  self.postMessage({ type: "progress", percent: 90 });
+  self.postMessage({ type: "progress", percent: 88 });
 
   // Compute daily summaries
   const summaries = {};
@@ -155,9 +183,10 @@ self.onmessage = function (e) {
       const mean = sum / n;
       const min = Math.min(...vals);
       const max = Math.max(...vals);
-      const variance = n > 1
-        ? vals.reduce((s, v) => s + Math.pow(v - mean, 2), 0) / (n - 1)
-        : 0;
+      const variance =
+        n > 1
+          ? vals.reduce((s, v) => s + Math.pow(v - mean, 2), 0) / (n - 1)
+          : 0;
 
       summaries[key].push({
         date,
@@ -171,10 +200,11 @@ self.onmessage = function (e) {
     }
   }
 
-  self.postMessage({ type: "progress", percent: 95 });
+  self.postMessage({ type: "progress", percent: 93 });
 
-  // Process sleep into nights
   const sleepNights = processSleepRecords(sleepRecords);
+
+  self.postMessage({ type: "progress", percent: 98 });
 
   self.postMessage({
     type: "complete",
@@ -192,18 +222,18 @@ self.onmessage = function (e) {
 };
 
 function processSleepRecords(records) {
-  // Group sleep records by night (use bedtime date, adjusted for going to bed after midnight)
   const nightMap = {};
 
   for (const rec of records) {
     if (!rec.startDate) continue;
-    // Determine which "night" this belongs to
     const startHour = new Date(rec.startDate).getHours();
     const startDateObj = new Date(rec.startDate);
-    // If after midnight but before noon, assign to previous day's night
-    const nightDate = startHour < 12
-      ? new Date(startDateObj.getTime() - 86400000).toISOString().substring(0, 10)
-      : rec.startDate.substring(0, 10);
+    const nightDate =
+      startHour < 12
+        ? new Date(startDateObj.getTime() - 86400000)
+            .toISOString()
+            .substring(0, 10)
+        : rec.startDate.substring(0, 10);
 
     if (!nightMap[nightDate]) nightMap[nightDate] = [];
     nightMap[nightDate].push(rec);
@@ -211,14 +241,18 @@ function processSleepRecords(records) {
 
   const nights = [];
   for (const [date, recs] of Object.entries(nightMap)) {
-    // Only process Apple Watch records (more accurate stages)
     const watchRecs = recs.filter(
       (r) => r.sourceName && r.sourceName.toLowerCase().includes("watch")
     );
     const useRecs = watchRecs.length > 0 ? watchRecs : recs;
 
-    let deepMin = 0, coreMin = 0, remMin = 0, awakeMin = 0, inBedMin = 0;
-    let earliestBed = null, latestWake = null;
+    let deepMin = 0,
+      coreMin = 0,
+      remMin = 0,
+      awakeMin = 0,
+      inBedMin = 0;
+    let earliestBed = null,
+      latestWake = null;
 
     for (const r of useRecs) {
       const start = new Date(r.startDate);
@@ -245,7 +279,6 @@ function processSleepRecords(records) {
           inBedMin += mins;
           break;
         case "HKCategoryValueSleepAnalysisAsleep":
-          // Legacy (no stages), count as core
           coreMin += mins;
           break;
       }
@@ -253,12 +286,13 @@ function processSleepRecords(records) {
 
     const totalSleep = deepMin + coreMin + remMin;
     const totalInBed = inBedMin > 0 ? inBedMin : totalSleep + awakeMin;
-    if (totalSleep < 60) continue; // skip nights with < 1h sleep
+    if (totalSleep < 60) continue;
 
-    // Sleep midpoint: average of bed and wake time as hour of day
     let midpoint = 0;
     if (earliestBed && latestWake) {
-      const mid = new Date((earliestBed.getTime() + latestWake.getTime()) / 2);
+      const mid = new Date(
+        (earliestBed.getTime() + latestWake.getTime()) / 2
+      );
       midpoint = mid.getHours() + mid.getMinutes() / 60;
     }
 

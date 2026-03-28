@@ -14,8 +14,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "VitalStat — Health Intelligence",
-  description: "Statistical health insights from your Apple Watch data. Privacy-first, zero server.",
+  title: "VitalStat — Inteligenta pentru Sanatate",
+  description: "Analize statistice riguroase din datele Apple Watch. Zero server, datele raman pe dispozitiv.",
   manifest: `${process.env.NODE_ENV === "production" ? "/vitalstat" : ""}/manifest.json`,
   appleWebApp: {
     capable: true,
@@ -38,7 +38,7 @@ export default function RootLayout({
 }>) {
   return (
     <html
-      lang="en"
+      lang="ro"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">

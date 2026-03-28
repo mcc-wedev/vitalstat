@@ -52,7 +52,7 @@ export function TrendChart({ metricKey, data, days = 90 }: TrendChartProps) {
   if (!config || chartData.length < 3) {
     return (
       <div className="bg-card border border-card-border rounded-xl p-6 text-center text-muted">
-        Not enough data for {config?.label || metricKey} trend
+        Insuficiente date pentru trendul {config?.label || metricKey}
       </div>
     );
   }
@@ -68,10 +68,10 @@ export function TrendChart({ metricKey, data, days = 90 }: TrendChartProps) {
         </h3>
         <div className="flex gap-4 text-xs text-muted">
           <span className="flex items-center gap-1">
-            <span className="w-3 h-0.5 rounded bg-muted/50 inline-block" /> daily
+            <span className="w-3 h-0.5 rounded bg-muted/50 inline-block" /> zilnic
           </span>
           <span className="flex items-center gap-1">
-            <span className="w-3 h-0.5 rounded inline-block" style={{ background: config.color }} /> 7d avg
+            <span className="w-3 h-0.5 rounded inline-block" style={{ background: config.color }} /> medie 7z
           </span>
           <span className="flex items-center gap-1">
             <span className="w-3 h-2 rounded inline-block bg-accent/20" /> 95% CI

@@ -141,10 +141,10 @@ export function FileUpload() {
               </svg>
             </div>
             <p className="text-foreground font-medium mb-1">
-              Drop your Apple Health export here
+              Trage fisierul Apple Health export aici
             </p>
             <p className="text-muted text-sm">
-              .zip or .xml file from iPhone → Health → Export All Health Data
+              .zip sau .xml din iPhone → Sanatate → Exporta toate datele
             </p>
           </>
         ) : (

@@ -69,7 +69,7 @@ export function InsightsPanel({
   if (insights.length === 0) {
     return (
       <div className="bg-card border border-card-border rounded-xl p-6 text-center text-muted">
-        Not enough data for insights yet. Need at least 14 days.
+        Insuficiente date pentru interpretari. Necesita minimum 14 zile.
       </div>
     );
   }

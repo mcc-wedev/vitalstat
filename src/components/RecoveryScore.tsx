@@ -86,7 +86,7 @@ export function RecoveryScoreDisplay({ rhrData, hrvData, sleepData }: RecoverySc
   if (!today) {
     return (
       <div className="bg-card border border-card-border rounded-xl p-6 text-center text-muted">
-        No heart rate or HRV data for recovery score
+        Nu sunt date de puls sau HRV pentru scorul de recuperare
       </div>
     );
   }
@@ -94,7 +94,7 @@ export function RecoveryScoreDisplay({ rhrData, hrvData, sleepData }: RecoverySc
   if (!today.hasEnoughData) {
     return (
       <div className="bg-card border border-card-border rounded-xl p-6 text-center">
-        <p className="text-muted mb-2">Recovery Score</p>
+        <p className="text-muted mb-2">Scor Recuperare</p>
         <p className="text-foreground">{today.message}</p>
       </div>
     );
@@ -102,7 +102,7 @@ export function RecoveryScoreDisplay({ rhrData, hrvData, sleepData }: RecoverySc
 
   return (
     <div className="bg-card border border-card-border rounded-xl p-6">
-      <h3 className="text-sm font-medium mb-4">Recovery Score</h3>
+      <h3 className="text-sm font-medium mb-4">Scor Recuperare</h3>
 
       <div className="flex items-center gap-8">
         <ScoreGauge score={today.total} />
@@ -110,8 +110,8 @@ export function RecoveryScoreDisplay({ rhrData, hrvData, sleepData }: RecoverySc
         <div className="flex-1 space-y-3">
           {[
             { label: "HRV", score: today.hrvScore, weight: "40%" },
-            { label: "Resting HR", score: today.rhrScore, weight: "30%" },
-            { label: "Sleep", score: today.sleepScore, weight: "30%" },
+            { label: "Puls repaus", score: today.rhrScore, weight: "30%" },
+            { label: "Somn", score: today.sleepScore, weight: "30%" },
           ].map((item) => (
             <div key={item.label}>
               <div className="flex justify-between text-xs mb-1">
@@ -142,7 +142,7 @@ export function RecoveryScoreDisplay({ rhrData, hrvData, sleepData }: RecoverySc
       {/* 30-day recovery trend */}
       {history.length > 7 && (
         <div className="mt-6">
-          <p className="text-xs text-muted mb-2">30-day trend</p>
+          <p className="text-xs text-muted mb-2">Trend 30 zile</p>
           <div className="h-16">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={history}>

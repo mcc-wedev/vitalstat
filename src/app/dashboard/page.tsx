@@ -12,11 +12,11 @@ import { clearData } from "@/lib/db/indexedDB";
 import type { DailySummary, SleepNight } from "@/lib/parser/healthTypes";
 
 const TABS: { key: DashboardTab; label: string }[] = [
-  { key: "overview", label: "Overview" },
-  { key: "cardio", label: "Cardio" },
-  { key: "sleep", label: "Sleep" },
-  { key: "activity", label: "Activity" },
-  { key: "recovery", label: "Recovery" },
+  { key: "overview", label: "Sumar" },
+  { key: "cardio", label: "Cardiovascular" },
+  { key: "sleep", label: "Somn" },
+  { key: "activity", label: "Activitate" },
+  { key: "recovery", label: "Recuperare" },
 ];
 
 export default function Dashboard() {
@@ -75,7 +75,7 @@ export default function Dashboard() {
             onClick={handleReset}
             className="text-danger/70 hover:text-danger transition-colors"
           >
-            Reset Data
+            Sterge datele
           </button>
         </div>
       </header>
@@ -143,7 +143,7 @@ function OverviewTab({ metrics, sleepNights }: TabProps) {
       {/* Insights — most important, at the top */}
       <div>
         <h2 className="text-sm font-medium text-muted uppercase tracking-wider mb-3">
-          Key Insights
+          Interpretari cheie
         </h2>
         <InsightsPanel
           metrics={metrics}
@@ -162,7 +162,7 @@ function OverviewTab({ metrics, sleepNights }: TabProps) {
       {/* Metric cards grid */}
       <div>
         <h2 className="text-sm font-medium text-muted uppercase tracking-wider mb-3">
-          Metrics at a Glance
+          Metrici la o privire
         </h2>
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
           {overviewMetrics.map((key) => (
@@ -292,7 +292,7 @@ function RecoveryTab({ metrics, sleepNights }: TabProps) {
       {/* Correlation insights */}
       <div>
         <h2 className="text-sm font-medium text-muted uppercase tracking-wider mb-3">
-          Correlations in Your Data
+          Corelatii in datele tale
         </h2>
         <InsightsPanel
           metrics={metrics}
@@ -303,27 +303,27 @@ function RecoveryTab({ metrics, sleepNights }: TabProps) {
 
       <div className="bg-card border border-card-border rounded-xl p-4">
         <h3 className="text-sm font-medium mb-3">
-          How Recovery Score Works
+          Cum functioneaza Scorul de Recuperare
         </h3>
         <div className="text-xs text-muted space-y-2">
           <p>
-            <strong className="text-foreground">HRV (40%):</strong> Heart
-            Rate Variability relative to your 30-day baseline. Higher =
-            better parasympathetic tone = better recovery.
+            <strong className="text-foreground">HRV (40%):</strong> Variabilitatea
+            pulsului relativa la baseline-ul tau pe 30 zile. Mai mare =
+            tonus parasimpatic mai bun = recuperare mai buna.
           </p>
           <p>
-            <strong className="text-foreground">Resting HR (30%):</strong>{" "}
-            Deviation from your personal baseline. Lower than usual = good.
-            Elevated = stress, illness, or overtraining.
+            <strong className="text-foreground">Puls repaus (30%):</strong>{" "}
+            Deviatie de la baseline-ul personal. Mai scazut decat de obicei = bine.
+            Ridicat = stres, boala, sau overtraining.
           </p>
           <p>
-            <strong className="text-foreground">Sleep (30%):</strong>{" "}
-            Combines sleep efficiency, duration (7-9h optimal), and deep
-            sleep percentage (&gt;15% target).
+            <strong className="text-foreground">Somn (30%):</strong>{" "}
+            Combina eficienta somnului, durata (7-9h optim), si procentul
+            de somn profund (&gt;15% tinta).
           </p>
           <p className="text-muted/70 pt-2">
-            Minimum 14 days of data required. All values are z-scored
-            against your personal baseline — not population norms.
+            Minimum 14 zile de date necesare. Toate valorile sunt z-scored
+            fata de baseline-ul tau personal — nu norme populationale.
           </p>
         </div>
       </div>

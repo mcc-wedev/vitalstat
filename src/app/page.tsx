@@ -49,9 +49,9 @@ export default function Home() {
           <h1 className="text-4xl font-bold tracking-tight">VitalStat</h1>
         </div>
         <p className="text-muted text-lg max-w-md mx-auto">
-          Statistical health intelligence from your Apple Watch.
+          Inteligenta statistica pentru sanatatea ta, din datele Apple Watch.
           <br />
-          <span className="text-sm">Privacy-first. Zero server. All data stays on your device.</span>
+          <span className="text-sm">Zero server. Datele raman pe dispozitivul tau.</span>
         </p>
       </div>
 
@@ -59,10 +59,10 @@ export default function Home() {
 
       <div className="mt-16 grid grid-cols-2 sm:grid-cols-4 gap-6 max-w-2xl w-full text-center">
         {[
-          { icon: "♥", label: "Recovery Score", desc: "Like WHOOP, free" },
-          { icon: "📊", label: "Trend Analysis", desc: "CI bands + anomalies" },
-          { icon: "🌙", label: "Sleep Intelligence", desc: "Stages & regularity" },
-          { icon: "🔒", label: "100% Private", desc: "Never leaves device" },
+          { icon: "♥", label: "Scor Recuperare", desc: "Ca WHOOP, gratis" },
+          { icon: "📊", label: "Analiza Trenduri", desc: "Intervale de incredere + anomalii" },
+          { icon: "🌙", label: "Analiza Somn", desc: "Stadii, regularitate, jet lag social" },
+          { icon: "🔒", label: "100% Privat", desc: "Datele nu parasesc dispozitivul" },
         ].map((f) => (
           <div key={f.label} className="p-4">
             <div className="text-2xl mb-2">{f.icon}</div>
@@ -73,7 +73,7 @@ export default function Home() {
       </div>
 
       <footer className="mt-16 text-muted text-xs">
-        How to export: iPhone → Health app → Profile → Export All Health Data
+        Cum exporti: iPhone → aplicatia Sanatate → Profil → Exporta toate datele de sanatate
       </footer>
     </main>
   );

@@ -84,7 +84,7 @@ export function SleepChart({ data, days = 30 }: SleepChartProps) {
   if (chartData.length === 0) {
     return (
       <div className="bg-card border border-card-border rounded-xl p-6 text-center text-muted">
-        No sleep data available
+        Nu sunt date de somn disponibile
       </div>
     );
   }
@@ -95,11 +95,11 @@ export function SleepChart({ data, days = 30 }: SleepChartProps) {
       {stats && (
         <div className="grid grid-cols-5 gap-3">
           {[
-            { label: "Avg Duration", value: `${stats.avgDuration}h`, good: Number(stats.avgDuration) >= 7 },
-            { label: "Efficiency", value: `${stats.avgEfficiency}%`, good: Number(stats.avgEfficiency) >= 85 },
-            { label: "Deep Sleep", value: `${stats.deepPct}%`, good: Number(stats.deepPct) >= 15 },
-            { label: "Regularity", value: `±${stats.regularity}h`, good: Number(stats.regularity) < 1 },
-            { label: "Social Jet Lag", value: `${stats.socialJetLag}h`, good: Number(stats.socialJetLag) < 1 },
+            { label: "Durata medie", value: `${stats.avgDuration}h`, good: Number(stats.avgDuration) >= 7 },
+            { label: "Eficienta", value: `${stats.avgEfficiency}%`, good: Number(stats.avgEfficiency) >= 85 },
+            { label: "Somn profund", value: `${stats.deepPct}%`, good: Number(stats.deepPct) >= 15 },
+            { label: "Regularitate", value: `±${stats.regularity}h`, good: Number(stats.regularity) < 1 },
+            { label: "Jet lag social", value: `${stats.socialJetLag}h`, good: Number(stats.socialJetLag) < 1 },
           ].map((s) => (
             <div key={s.label} className="bg-card border border-card-border rounded-lg p-3 text-center">
               <p className="text-xs text-muted mb-1">{s.label}</p>
@@ -114,22 +114,22 @@ export function SleepChart({ data, days = 30 }: SleepChartProps) {
       {/* Stacked bar chart */}
       <div className="bg-card border border-card-border rounded-xl p-4">
         <h3 className="text-sm font-medium mb-4">
-          Sleep Stages
-          <span className="text-muted ml-2 font-normal">last {days}d</span>
+          Stadii somn
+          <span className="text-muted ml-2 font-normal">ultimele {days}z</span>
         </h3>
 
         <div className="flex gap-4 text-xs text-muted mb-3">
           <span className="flex items-center gap-1">
-            <span className="w-3 h-2 rounded bg-blue-900 inline-block" /> Deep
+            <span className="w-3 h-2 rounded bg-blue-900 inline-block" /> Profund
           </span>
           <span className="flex items-center gap-1">
-            <span className="w-3 h-2 rounded bg-blue-500 inline-block" /> Core
+            <span className="w-3 h-2 rounded bg-blue-500 inline-block" /> Usor
           </span>
           <span className="flex items-center gap-1">
             <span className="w-3 h-2 rounded bg-purple-500 inline-block" /> REM
           </span>
           <span className="flex items-center gap-1">
-            <span className="w-3 h-2 rounded bg-red-400/50 inline-block" /> Awake
+            <span className="w-3 h-2 rounded bg-red-400/50 inline-block" /> Treaz
           </span>
         </div>
 

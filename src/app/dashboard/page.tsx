@@ -96,6 +96,11 @@ export default function Dashboard() {
       .filter(([key, cfg]) => cfg.category === cat && filteredMetrics[key]?.length > 0)
       .map(([key]) => key);
 
+  // Scroll to top when tab changes
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, [activeTab]);
+
   return (
     <div className="min-h-screen flex flex-col bg-gradient-subtle">
       <Onboarding />
@@ -547,12 +552,40 @@ function OverviewTab({
 function SleepTab({ metrics, sleepNights, allSleep }: { metrics: Record<string, DailySummary[]>; sleepNights: SleepNight[]; allSleep: SleepNight[] }) {
   return (
     <div className="space-y-6">
+      <h2 className="section-header flex items-center gap-2">
+        <span>🌙</span> Somn
+        <span className="text-[15px] font-normal" style={{ color: "rgba(235,235,245,0.3)" }}>({sleepNights.length} nopti)</span>
+      </h2>
+
+      {/* Sleep chart first — most visual */}
+      <SleepChart data={sleepNights} days={sleepNights.length} />
+
+      {/* Insights */}
       <InsightsPanel metrics={metrics} sleepNights={sleepNights} filter="sleep" />
+
+      {/* Smart tips + circadian */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <SmartSleepTips metrics={metrics} sleepNights={allSleep} />
         <CircadianMap sleepNights={allSleep} />
       </div>
-      <SleepChart data={sleepNights} days={sleepNights.length} />
+
+      {/* Sleep-related metrics */}
+      {(() => {
+        const sleepMetricKeys = Object.entries(METRIC_CONFIG)
+          .filter(([key, cfg]) => cfg.category === "sleep" && metrics[key]?.length > 0)
+          .map(([key]) => key);
+        if (sleepMetricKeys.length === 0) return null;
+        return (
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 stagger-in">
+            {sleepMetricKeys.map((key) => (
+              <MetricCard key={key} metricKey={key} data={metrics[key]} />
+            ))}
+          </div>
+        );
+      })()}
+
+      {/* Sleep bank */}
+      <SleepBank sleepNights={sleepNights} />
     </div>
   );
 }
@@ -566,31 +599,45 @@ function CategoryTab({
   sleepNights: SleepNight[];
   availableKeys: string[];
 }) {
+  const catInfo = CATEGORIES[category];
+
+  if (availableKeys.length === 0) {
+    return (
+      <div className="glass p-12 text-center">
+        <p className="text-[22px] mb-2">{catInfo?.icon}</p>
+        <p className="text-[17px] mb-2 text-white">Nu sunt date pentru {catInfo?.label || category}</p>
+        <p className="text-[15px]" style={{ color: "rgba(235,235,245,0.6)" }}>Aceasta categorie nu contine date in exportul tau Apple Health.</p>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
+      {/* Category header */}
+      <h2 className="section-header flex items-center gap-2">
+        <span>{catInfo?.icon}</span> {catInfo?.label}
+        <span className="text-[15px] font-normal" style={{ color: "rgba(235,235,245,0.3)" }}>({availableKeys.length} metrici)</span>
+      </h2>
+
+      {/* Insights for this category */}
       <InsightsPanel metrics={metrics} sleepNights={sleepNights} filter={category === "body" ? undefined : category} />
       {category === "body" && <InsightsPanel metrics={metrics} sleepNights={sleepNights} filter="nutrition" />}
 
-      {availableKeys.length > 0 ? (
-        <>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 stagger-in">
-            {availableKeys.map((key) => (
-              <MetricCard key={key} metricKey={key} data={metrics[key]} />
-            ))}
-          </div>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {availableKeys.slice(0, 4).map((key) => (
-              <TrendChart key={key} metricKey={key} data={metrics[key]} />
-            ))}
-          </div>
-        </>
-      ) : (
-        <div className="glass p-12 text-center">
-          <p className="text-[17px] mb-2 text-white">Nu sunt date disponibile</p>
-          <p className="text-[15px]" style={{ color: "rgba(235,235,245,0.6)" }}>Aceasta categorie nu contine date in exportul tau Apple Health.</p>
-        </div>
-      )}
+      {/* Metrics grid */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 stagger-in">
+        {availableKeys.map((key) => (
+          <MetricCard key={key} metricKey={key} data={metrics[key]} />
+        ))}
+      </div>
 
+      {/* Trend charts for top metrics */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {availableKeys.slice(0, 4).map((key) => (
+          <TrendChart key={key} metricKey={key} data={metrics[key]} />
+        ))}
+      </div>
+
+      {/* Nutrition subsection for body tab */}
       {category === "body" && (() => {
         const nutritionKeys = Object.entries(METRIC_CONFIG)
           .filter(([key, cfg]) => cfg.category === "nutrition" && metrics[key]?.length > 0)
@@ -599,7 +646,7 @@ function CategoryTab({
         return (
           <section>
             <h2 className="section-header">{CATEGORIES.nutrition.icon} {CATEGORIES.nutrition.label}</h2>
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 stagger-in">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 stagger-in">
               {nutritionKeys.map((key) => (
                 <MetricCard key={key} metricKey={key} data={metrics[key]} />
               ))}

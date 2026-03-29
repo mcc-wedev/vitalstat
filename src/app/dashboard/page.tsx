@@ -216,6 +216,126 @@ export default function Dashboard() {
 // ═══════════════════════════════════════
 //  OVERVIEW TAB — Restructured
 // ═══════════════════════════════════════
+function OneBigThing({ metrics, sleepNights }: { metrics: Record<string, DailySummary[]>; sleepNights: SleepNight[] }) {
+  const insight = useMemo(() => {
+    // Find the most impactful metric change
+    const checks = [
+      { key: "hrv", label: "HRV", higherBetter: true },
+      { key: "restingHeartRate", label: "Pulsul de repaus", higherBetter: false },
+      { key: "oxygenSaturation", label: "SpO2", higherBetter: true },
+    ];
+    let best: { text: string; color: string; icon: string } | null = null;
+    let maxChange = 0;
+
+    for (const { key, label, higherBetter } of checks) {
+      const d = metrics[key];
+      if (!d || d.length < 7) continue;
+      const last7 = d.slice(-7);
+      const prev7 = d.slice(-14, -7);
+      if (prev7.length < 3) continue;
+      const avgLast = last7.reduce((s, x) => s + (x.mean || 0), 0) / last7.length;
+      const avgPrev = prev7.reduce((s, x) => s + (x.mean || 0), 0) / prev7.length;
+      if (avgPrev === 0) continue;
+      const pct = ((avgLast - avgPrev) / avgPrev) * 100;
+      if (Math.abs(pct) > Math.abs(maxChange)) {
+        maxChange = pct;
+        const improved = (pct > 0 && higherBetter) || (pct < 0 && !higherBetter);
+        best = {
+          text: `${label} ${pct > 0 ? "a crescut" : "a scazut"} cu ${Math.abs(pct).toFixed(1)}% fata de saptamana anterioara`,
+          color: improved ? "#10b981" : "#ef4444",
+          icon: improved ? "\u2191" : "\u2193",
+        };
+      }
+    }
+
+    if (!best && sleepNights.length >= 7) {
+      const last7 = sleepNights.slice(-7);
+      const avgDur = last7.reduce((s, n) => s + (n.totalMinutes || 0), 0) / last7.length / 60;
+      best = {
+        text: `Media somnului in ultimele 7 nopti: ${avgDur.toFixed(1)} ore`,
+        color: avgDur >= 7 ? "#10b981" : avgDur >= 6 ? "#f59e0b" : "#ef4444",
+        icon: avgDur >= 7 ? "\u2713" : "\u26a0\ufe0f",
+      };
+    }
+
+    return best;
+  }, [metrics, sleepNights]);
+
+  if (!insight) return null;
+
+  return (
+    <div className="card-premium p-5 sm:p-6">
+      <p className="text-[10px] uppercase tracking-widest text-[var(--foreground-muted)] font-bold mb-3">Cel mai important lucru</p>
+      <div className="flex items-center gap-3">
+        <span className="text-2xl">{insight.icon}</span>
+        <p className="text-sm sm:text-base font-medium text-[var(--foreground-secondary)] leading-relaxed">{insight.text}</p>
+      </div>
+    </div>
+  );
+}
+
+function LongTermTrends({ metrics }: { metrics: Record<string, DailySummary[]> }) {
+  const trends = useMemo(() => {
+    const checks = [
+      { key: "restingHeartRate", label: "Puls repaus", unit: "bpm", higherBetter: false },
+      { key: "hrv", label: "HRV", unit: "ms", higherBetter: true },
+      { key: "stepCount", label: "Pasi", unit: "", higherBetter: true },
+    ];
+    const results: { label: string; current: number; previous: number; unit: string; pctChange: number; improved: boolean }[] = [];
+
+    for (const { key, label, unit, higherBetter } of checks) {
+      const d = metrics[key];
+      if (!d || d.length < 14) continue;
+      const last7 = d.slice(-7);
+      const prev7 = d.slice(-14, -7);
+      if (prev7.length < 3) continue;
+      const avgLast = last7.reduce((s, x) => s + (x.mean || 0), 0) / last7.length;
+      const avgPrev = prev7.reduce((s, x) => s + (x.mean || 0), 0) / prev7.length;
+      if (avgPrev === 0) continue;
+      const pct = ((avgLast - avgPrev) / avgPrev) * 100;
+      results.push({
+        label,
+        current: avgLast,
+        previous: avgPrev,
+        unit,
+        pctChange: pct,
+        improved: (pct > 0 && higherBetter) || (pct < 0 && !higherBetter),
+      });
+    }
+    return results;
+  }, [metrics]);
+
+  if (trends.length === 0) return null;
+
+  return (
+    <section>
+      <h2 className="section-header">Tendinte pe termen lung \u00b7 7d vs 7d anterioare</h2>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        {trends.map((t) => (
+          <div key={t.label} className="card-premium p-4 sm:p-5">
+            <p className="text-[10px] uppercase tracking-wider text-[var(--foreground-muted)] font-medium mb-2">{t.label}</p>
+            <div className="flex items-end gap-2 mb-1">
+              <span className="text-xl sm:text-2xl font-bold tabular-nums">{t.current.toFixed(t.unit === "bpm" || t.unit === "ms" ? 0 : 0)}</span>
+              {t.unit && <span className="text-[10px] text-[var(--foreground-muted)] mb-0.5">{t.unit}</span>}
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="text-sm font-bold" style={{ color: t.improved ? "#10b981" : "#ef4444" }}>
+                {t.pctChange > 0 ? "\u2191" : "\u2193"}
+              </span>
+              <span className="text-xs font-semibold tabular-nums" style={{ color: t.improved ? "#10b981" : "#ef4444" }}>
+                {Math.abs(t.pctChange).toFixed(1)}%
+              </span>
+              <span className="text-[9px] text-[var(--foreground-muted)]">
+                de la {t.previous.toFixed(0)} {t.unit}
+              </span>
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function OverviewTab({
   metrics, sleepNights, allMetrics, allSleep, metricsForCategory, datePreset,
 }: {
@@ -227,7 +347,6 @@ function OverviewTab({
   datePreset: string;
 }) {
   const [showAllInsights, setShowAllInsights] = useState(false);
-  const [expandedSection, setExpandedSection] = useState<string | null>(null);
 
   // Compute target date for recovery based on selected period
   const recoveryTargetDate = useMemo(() => {
@@ -235,7 +354,6 @@ function OverviewTab({
     const yesterday = new Date(Date.now() - 86400000).toISOString().substring(0, 10);
     if (datePreset === "today") return today;
     if (datePreset === "yesterday") return yesterday;
-    // For range periods (7d, 14d, 30d, etc.), use the latest date in the filtered data
     const allDates = Object.values(metrics).flatMap(arr => arr.map(d => d.date));
     return allDates.sort().pop() || today;
   }, [datePreset, metrics]);
@@ -253,9 +371,9 @@ function OverviewTab({
     .filter(k => metrics[k]?.length > 0);
 
   return (
-    <div className="space-y-5">
-      {/* ── HERO: Recovery Score + Priority Insights ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
+    <div className="space-y-6 sm:space-y-8">
+      {/* ── HERO: Recovery Score ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-5">
         <div className="lg:col-span-2">
           <HeroScore
             rhrData={allMetrics.restingHeartRate || []}
@@ -268,8 +386,8 @@ function OverviewTab({
             targetDate={recoveryTargetDate}
           />
         </div>
-        <div className="lg:col-span-3 glass p-4 sm:p-5">
-          <div className="flex items-center justify-between mb-3">
+        <div className="lg:col-span-3 card-premium p-5 sm:p-6">
+          <div className="flex items-center justify-between mb-4">
             <h3 className="text-xs font-bold text-[var(--foreground-secondary)] uppercase tracking-wider">Ce trebuie sa stii</h3>
             <span className="badge badge-info">{periodLabel}</span>
           </div>
@@ -277,10 +395,16 @@ function OverviewTab({
         </div>
       </div>
 
+      {/* ── ONE BIG THING ── */}
+      <OneBigThing metrics={metrics} sleepNights={sleepNights} />
+
+      {/* ── LONG-TERM TRENDS ── */}
+      <LongTermTrends metrics={metrics} />
+
       {/* ── KEY METRICS GRID ── */}
       <section>
-        <h2 className="section-header">Metrici principale</h2>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 stagger-in">
+        <h2 className="section-header">Metrici principale &middot; {periodLabel}</h2>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 stagger-in">
           {keyMetrics.map((key) => (
             <MetricCard key={key} metricKey={key} data={metrics[key]} />
           ))}
@@ -295,15 +419,15 @@ function OverviewTab({
       <div className="divider" />
 
       {/* ── TRAINING & AGING ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         <StrainCoach metrics={metrics} sleepNights={sleepNights} />
         <BiologicalAge metrics={metrics} sleepNights={sleepNights} />
       </div>
 
       {/* ── TREND CHARTS ── */}
       <section>
-        <h2 className="section-header">Trenduri cheie</h2>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <h2 className="section-header">Trenduri cheie &middot; {periodLabel}</h2>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
           {metrics.restingHeartRate?.length > 0 && <TrendChart metricKey="restingHeartRate" data={metrics.restingHeartRate} />}
           {metrics.hrv?.length > 0 && <TrendChart metricKey="hrv" data={metrics.hrv} />}
         </div>
@@ -314,17 +438,17 @@ function OverviewTab({
 
       {/* ── DAILY PERFORMANCE ── */}
       <section>
-        <h2 className="section-header">Performanta zilnica</h2>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <h2 className="section-header">Performanta zilnica &middot; {periodLabel}</h2>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
           <GoalsTracker metrics={metrics} sleepNights={sleepNights} />
           <WeeklyDigest metrics={metrics} sleepNights={sleepNights} />
         </div>
       </section>
 
-      {/* ── DEEP ANALYSIS (collapsible sections) ── */}
+      {/* ── DEEP ANALYSIS ── */}
       <section>
-        <h2 className="section-header">Analiza aprofundata</h2>
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <h2 className="section-header">Analiza aprofundata &middot; {periodLabel}</h2>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
           <ResilienceScore metrics={metrics} sleepNights={sleepNights} />
           <StabilityScores metrics={metrics} sleepNights={sleepNights} />
           <SleepBank sleepNights={sleepNights} />
@@ -332,7 +456,7 @@ function OverviewTab({
       </section>
 
       {/* ── BEHAVIOR & TRENDS ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         <BehaviorJournal metrics={metrics} sleepNights={sleepNights} />
         <MonthlyRecap metrics={metrics} sleepNights={sleepNights} />
       </div>
@@ -343,7 +467,7 @@ function OverviewTab({
       {/* ── SIMULATORS ── */}
       <section>
         <h2 className="section-header">Simulari & Comparatii</h2>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
           <WhatIfSimulator metrics={metrics} sleepNights={sleepNights} />
           <AgeBenchmark metrics={metrics} />
         </div>
@@ -363,7 +487,7 @@ function OverviewTab({
       {/* ── HEATMAPS ── */}
       <section>
         <h2 className="section-header">Vizualizari</h2>
-        <div className="space-y-4">
+        <div className="space-y-5">
           <CalendarHeatmap metrics={metrics} />
           <CorrelationHeatmap metrics={metrics} />
         </div>
@@ -374,9 +498,9 @@ function OverviewTab({
       {!showAllInsights ? (
         <button
           onClick={() => setShowAllInsights(true)}
-          className="w-full glass p-4 text-center text-xs font-semibold text-[var(--accent)] hover:text-white cursor-pointer"
+          className="w-full card-premium p-5 text-center text-xs font-semibold text-[var(--accent)] hover:text-white cursor-pointer"
         >
-          Vezi toate interpretarile →
+          Vezi toate interpretarile \u2192
         </button>
       ) : (
         <section className="animate-in">
@@ -395,7 +519,7 @@ function OverviewTab({
               <span>{CATEGORIES[cat].icon}</span> {CATEGORIES[cat].label}
               <span className="font-normal text-[var(--foreground-muted)]">({keys.length})</span>
             </h2>
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 stagger-in">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 stagger-in">
               {keys.map((key) => (
                 <MetricCard key={key} metricKey={key} data={metrics[key]} />
               ))}

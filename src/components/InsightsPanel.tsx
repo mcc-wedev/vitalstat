@@ -13,11 +13,11 @@ interface InsightsPanelProps {
   compact?: boolean;
 }
 
-const SEV: Record<InsightSeverity, { icon: string; bg: string; border: string; text: string; glow: string }> = {
-  alert:   { icon: "⚠️", bg: "rgba(239,68,68,0.04)",  border: "rgba(239,68,68,0.15)", text: "text-red-400",     glow: "0 0 20px rgba(239,68,68,0.08)" },
-  warning: { icon: "⚡",  bg: "rgba(245,158,11,0.04)", border: "rgba(245,158,11,0.15)", text: "text-amber-400",   glow: "0 0 20px rgba(245,158,11,0.06)" },
-  good:    { icon: "✓",  bg: "rgba(16,185,129,0.04)", border: "rgba(16,185,129,0.15)", text: "text-emerald-400", glow: "0 0 20px rgba(16,185,129,0.06)" },
-  info:    { icon: "ℹ",  bg: "rgba(59,130,246,0.04)", border: "rgba(59,130,246,0.12)", text: "text-blue-400",    glow: "none" },
+const SEV: Record<InsightSeverity, { icon: string; bg: string; borderColor: string; text: string; glow: string; label: string }> = {
+  alert:   { icon: "\u26a0\ufe0f", bg: "rgba(239,68,68,0.04)",  borderColor: "rgba(239,68,68,0.5)",  text: "text-red-400",     glow: "0 0 20px rgba(239,68,68,0.08)",  label: "Atentie" },
+  warning: { icon: "\u26a1",       bg: "rgba(245,158,11,0.04)", borderColor: "rgba(245,158,11,0.5)", text: "text-amber-400",   glow: "0 0 20px rgba(245,158,11,0.06)", label: "Avertizare" },
+  good:    { icon: "\u2713",       bg: "rgba(16,185,129,0.04)", borderColor: "rgba(16,185,129,0.4)", text: "text-emerald-400", glow: "0 0 20px rgba(16,185,129,0.06)", label: "Bine" },
+  info:    { icon: "\u2139",       bg: "rgba(59,130,246,0.04)", borderColor: "rgba(59,130,246,0.35)", text: "text-blue-400",    glow: "none",                           label: "Info" },
 };
 
 const SEV_ORDER: InsightSeverity[] = ["alert", "warning", "info", "good"];
@@ -35,17 +35,18 @@ export function InsightsPanel({ metrics, sleepNights, filter, maxItems, compact 
 
   if (compact) {
     return (
-      <div className="space-y-2.5">
+      <div className="space-y-3">
         {insights.map((insight) => {
           const s = SEV[insight.severity];
           return (
-            <div key={insight.id}>
-              <div className="flex items-start gap-2">
-                <span className="text-sm shrink-0">{s.icon}</span>
-                <div className="min-w-0">
-                  <h4 className={`font-medium text-xs ${s.text}`}>{insight.title}</h4>
-                  <p className="text-[11px] text-[var(--muted-strong)] mt-0.5 leading-relaxed line-clamp-2">{insight.body}</p>
-                </div>
+            <div key={insight.id} className="flex items-start gap-3">
+              {/* Severity dot */}
+              <div className="mt-1.5 shrink-0">
+                <div className="w-2 h-2 rounded-full" style={{ background: s.borderColor }} />
+              </div>
+              <div className="min-w-0 flex-1">
+                <h4 className={`font-semibold text-xs ${s.text}`}>{insight.title}</h4>
+                <p className="text-[11px] text-[var(--muted-strong)] mt-0.5 leading-relaxed line-clamp-2">{insight.body}</p>
               </div>
             </div>
           );
@@ -71,16 +72,24 @@ function InsightCard({ insight, style }: { insight: Insight; style?: React.CSSPr
       className="insight-card animate-in backdrop-blur-xl"
       style={{
         background: s.bg,
-        borderColor: s.border,
+        borderLeftColor: s.borderColor,
         boxShadow: s.glow,
         ...style,
       }}
     >
       <div className="flex items-start gap-3">
-        <span className="text-base mt-0.5 shrink-0">{s.icon}</span>
         <div className="flex-1 min-w-0">
-          <h4 className={`font-semibold text-sm ${s.text}`}>{insight.title}</h4>
-          <p className="text-[13px] text-[var(--muted-strong)] mt-1.5 whitespace-pre-line leading-relaxed">
+          <div className="flex items-center gap-2 mb-1">
+            <h4 className={`font-semibold text-sm ${s.text}`}>{insight.title}</h4>
+            <span className="text-[9px] px-1.5 py-0.5 rounded-full font-medium" style={{
+              background: s.bg,
+              color: s.borderColor,
+              border: `1px solid ${s.borderColor}30`,
+            }}>
+              {s.label}
+            </span>
+          </div>
+          <p className="text-[13px] text-[var(--muted-strong)] mt-1 whitespace-pre-line leading-relaxed">
             {insight.body}
           </p>
         </div>

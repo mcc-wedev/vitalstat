@@ -14,29 +14,44 @@ interface MetricCardProps {
 export function MetricCard({ metricKey, data, onClick }: MetricCardProps) {
   const config = METRIC_CONFIG[metricKey];
 
-  const { latest, trend, trendPct, sparkData } = useMemo(() => {
+  const { latest, trend, trendPct, sparkData, trendLabel } = useMemo(() => {
     if (!data || data.length === 0)
-      return { latest: null, trend: "stable" as const, trendPct: 0, sparkData: [] };
+      return { latest: null, trend: "stable" as const, trendPct: 0, sparkData: [], trendLabel: "" };
 
-    const last30 = data.slice(-30);
-    const latestVal = getDisplayValue(last30[last30.length - 1], metricKey);
+    const latestVal = getDisplayValue(data[data.length - 1], metricKey);
 
-    const last7 = last30.slice(-7);
-    const prev7 = last30.slice(-14, -7);
+    // Adaptive trend: use half the data range for comparison
+    // For 7 days: compare last 3-4 vs previous 3-4
+    // For 30 days: compare last 7 vs previous 7
+    // For 1 day: no trend possible
+    const n = data.length;
     let trend: "up" | "down" | "stable" = "stable";
     let trendPct = 0;
+    let trendLabel = "";
 
-    if (last7.length >= 3 && prev7.length >= 3) {
-      const avgLast = last7.reduce((s, d) => s + getDisplayValue(d, metricKey), 0) / last7.length;
-      const avgPrev = prev7.reduce((s, d) => s + getDisplayValue(d, metricKey), 0) / prev7.length;
-      if (avgPrev > 0) {
-        trendPct = ((avgLast - avgPrev) / avgPrev) * 100;
-        if (Math.abs(trendPct) > 2) trend = trendPct > 0 ? "up" : "down";
+    if (n >= 4) {
+      // Split data in half for comparison
+      const halfLen = Math.min(Math.floor(n / 2), 14); // cap at 14 days per half
+      const recentHalf = data.slice(-halfLen);
+      const prevHalf = data.slice(-(halfLen * 2), -halfLen);
+
+      if (recentHalf.length >= 2 && prevHalf.length >= 2) {
+        const avgRecent = recentHalf.reduce((s, d) => s + getDisplayValue(d, metricKey), 0) / recentHalf.length;
+        const avgPrev = prevHalf.reduce((s, d) => s + getDisplayValue(d, metricKey), 0) / prevHalf.length;
+        if (avgPrev > 0) {
+          trendPct = ((avgRecent - avgPrev) / avgPrev) * 100;
+          if (Math.abs(trendPct) > 2) trend = trendPct > 0 ? "up" : "down";
+        }
+        trendLabel = `vs ${halfLen}z ant.`;
       }
+    } else if (n === 1) {
+      trendLabel = "azi";
+    } else {
+      trendLabel = `${n}z`;
     }
 
-    const sparkData = last30.map(d => ({ v: getDisplayValue(d, metricKey) }));
-    return { latest: latestVal, trend, trendPct, sparkData };
+    const sparkData = data.map(d => ({ v: getDisplayValue(d, metricKey) }));
+    return { latest: latestVal, trend, trendPct, sparkData, trendLabel };
   }, [data, metricKey]);
 
   if (!config || latest === null) return null;
@@ -89,7 +104,7 @@ export function MetricCard({ metricKey, data, onClick }: MetricCardProps) {
         >
           {Math.abs(trendPct).toFixed(0)}%
         </span>
-        <span className="text-[9px] text-[var(--foreground-muted)]">vs 7d ant.</span>
+        <span className="text-[9px] text-[var(--foreground-muted)]">{trendLabel}</span>
       </div>
 
       {/* Sparkline with area fill */}

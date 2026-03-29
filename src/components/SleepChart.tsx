@@ -114,7 +114,7 @@ export function SleepChart({ data, days = 30 }: SleepChartProps) {
           </div>
         </div>
 
-        <div className="h-44 sm:h-52 w-full">
+        <div className="h-52 sm:h-64 w-full">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={chartData} margin={{ top: 5, right: 8, bottom: 5, left: 0 }}>
               <XAxis

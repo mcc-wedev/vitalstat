@@ -1,22 +1,23 @@
 // ═══════════════════════════════════════════════════════════
-// VITALSTAT SERVICE WORKER — aggressive cache busting
-// Bump BUILD_TS on each deploy via next.config.ts inject
+// VITALSTAT SERVICE WORKER v6
+// Strategy: Network-first for EVERYTHING except hashed assets
+// This ensures users ALWAYS get the latest version
 // ═══════════════════════════════════════════════════════════
 
-const CACHE_VERSION = "v5";
+const CACHE_VERSION = "v6";
 const CACHE_NAME = `vitalstat-${CACHE_VERSION}`;
 
-// On install: skip waiting immediately — don't wait for old tabs
+// On install: skip waiting immediately — activate instantly
 self.addEventListener("install", () => self.skipWaiting());
 
-// On activate: purge ALL old caches, claim all clients
+// On activate: purge ALL old caches, claim all clients, notify reload
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches.keys()
       .then((keys) => Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k))))
       .then(() => self.clients.claim())
       .then(() => {
-        // Notify all open tabs to reload
+        // Force reload all open tabs when new SW activates
         self.clients.matchAll({ type: "window" }).then((clients) => {
           clients.forEach((c) => c.postMessage({ type: "SW_UPDATED" }));
         });
@@ -27,23 +28,10 @@ self.addEventListener("activate", (event) => {
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
 
-  // HTML pages: ALWAYS network-first (never serve stale HTML)
-  if (event.request.mode === "navigate") {
-    event.respondWith(
-      fetch(event.request)
-        .then((response) => {
-          const clone = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
-          return response;
-        })
-        .catch(() => caches.match(event.request))
-    );
-    return;
-  }
-
-  // JS/CSS with hashed filenames: cache-first (hash guarantees uniqueness)
   const url = new URL(event.request.url);
-  const isHashed = /\.[a-f0-9]{8,}\./.test(url.pathname) || url.pathname.includes("/_next/static/");
+
+  // ONLY cache-first for hashed static assets (immutable by definition)
+  const isHashed = /\.[a-f0-9]{8,}\./.test(url.pathname);
 
   if (isHashed) {
     event.respondWith(
@@ -61,7 +49,8 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Everything else: network-first with cache fallback
+  // EVERYTHING else (HTML, non-hashed JS/CSS, workers): network-first
+  // If network fails, fall back to cache (offline support)
   event.respondWith(
     fetch(event.request)
       .then((response) => {
@@ -81,7 +70,7 @@ self.addEventListener("message", (event) => {
     self.skipWaiting();
   }
   if (event.data === "FORCE_REFRESH") {
-    // Nuclear option: delete all caches and reload
+    // Nuclear: delete all caches
     caches.keys().then((keys) => Promise.all(keys.map((k) => caches.delete(k))));
   }
 });

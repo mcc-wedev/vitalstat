@@ -23,11 +23,11 @@ function getScoreLabel(score: number): string {
 }
 
 function getScoreColor(score: number): string {
-  if (score >= 80) return "#10b981";
-  if (score >= 60) return "#22d3ee";
-  if (score >= 40) return "#f59e0b";
-  if (score >= 20) return "#f97316";
-  return "#ef4444";
+  if (score >= 80) return "#34C759";
+  if (score >= 60) return "#007AFF";
+  if (score >= 40) return "#FF9500";
+  if (score >= 20) return "#FF3B30";
+  return "#FF3B30";
 }
 
 function getScoreMessage(score: number): string {
@@ -39,14 +39,14 @@ function getScoreMessage(score: number): string {
 }
 
 const COMPONENT_COLORS: Record<string, string> = {
-  "HRV": "#8b5cf6",
-  "Puls repaus": "#ef4444",
-  "Somn": "#3b82f6",
-  "Balanta antrenament": "#f59e0b",
-  "Efort ieri": "#f97316",
-  "Rata respiratorie": "#06b6d4",
-  "SpO2": "#10b981",
-  "Temperatura": "#ec4899",
+  "HRV": "#FF2D55",
+  "Puls repaus": "#FF3B30",
+  "Somn": "#AF52DE",
+  "Balanta antrenament": "#FF9500",
+  "Efort ieri": "#FF9500",
+  "Rata respiratorie": "#5AC8FA",
+  "SpO2": "#34C759",
+  "Temperatura": "#FF9500",
 };
 
 function formatDateRo(dateStr: string): string {
@@ -79,7 +79,7 @@ export function HeroScore({ rhrData, hrvData, sleepData, exerciseData, respData,
   if (!recovery.hasEnoughData) {
     return (
       <div className="glass p-8 text-center">
-        <p className="text-[var(--muted-strong)] text-sm">{recovery.message}</p>
+        <p style={{ color: "rgba(235,235,245,0.6)" }} className="text-[15px]">{recovery.message}</p>
       </div>
     );
   }
@@ -90,100 +90,84 @@ export function HeroScore({ rhrData, hrvData, sleepData, exerciseData, respData,
   const message = getScoreMessage(score);
   const activeComponents = recovery.components.filter(c => c.available);
 
-  // Larger gauge on mobile (160px), even larger on desktop
-  const size = 160;
-  const strokeWidth = 10;
-  const radius = (size - strokeWidth * 2) / 2;
-  const circumference = 2 * Math.PI * radius;
-  const arcLength = circumference * 0.75;
-  const progress = (score / 100) * arcLength;
-
   return (
-    <div className="card-premium p-5 sm:p-6 animate-scale-in relative overflow-hidden">
-      {/* Always stack vertically */}
-      <div className="flex flex-col items-center">
-        {/* Date context */}
-        {recoveryDate && (
-          <p className="text-[11px] text-[var(--foreground-muted)] mb-4 tracking-wide uppercase font-medium">
-            {formatDateRo(recoveryDate)}
-          </p>
-        )}
-
-        {/* Gauge with glow */}
-        <div className="relative mb-4">
-          {/* Radial glow behind gauge */}
-          <div
-            className="hero-glow"
-            style={{ background: `radial-gradient(circle, ${color}30 0%, transparent 70%)` }}
-          />
-          <div className="relative z-10" style={{ width: size, height: size }}>
-            <svg width={size} height={size} className="transform rotate-[135deg]">
-              <circle
-                cx={size / 2} cy={size / 2} r={radius}
-                fill="none" stroke="rgba(255,255,255,0.04)" strokeWidth={strokeWidth}
-                strokeDasharray={`${arcLength} ${circumference}`}
-                strokeLinecap="round"
-              />
-              <circle
-                cx={size / 2} cy={size / 2} r={radius}
-                fill="none" stroke={color} strokeWidth={strokeWidth}
-                strokeDasharray={`${progress} ${circumference}`}
-                strokeLinecap="round"
-                style={{ filter: `drop-shadow(0 0 12px ${color}50)` }}
-              />
-            </svg>
-            <div className="absolute inset-0 flex flex-col items-center justify-center">
-              <span className="text-4xl sm:text-5xl font-bold tabular-nums animate-count-up" style={{ color, letterSpacing: "-0.03em" }}>
-                {score}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {/* Score label — large */}
-        <h2 className="text-lg sm:text-xl font-bold mb-1" style={{ color }}>
-          {label}
-        </h2>
-
-        {/* Message */}
-        <p className="text-sm text-[var(--muted-strong)] text-center mb-5 max-w-[280px] leading-relaxed">
-          {message}
+    <div className="card-premium p-5 sm:p-6 animate-scale-in">
+      {/* Date */}
+      {recoveryDate && (
+        <p
+          className="text-[13px] mb-4"
+          style={{ color: "rgba(235,235,245,0.3)" }}
+        >
+          {formatDateRo(recoveryDate)}
         </p>
+      )}
 
-        {/* Confidence badge */}
-        <div className="mb-5">
-          <span className="text-[9px] px-2 py-1 rounded-full font-medium" style={{
-            background: recovery.confidence === "high" ? "rgba(16,185,129,0.12)" : recovery.confidence === "medium" ? "rgba(245,158,11,0.12)" : "rgba(239,68,68,0.12)",
-            color: recovery.confidence === "high" ? "#10b981" : recovery.confidence === "medium" ? "#f59e0b" : "#ef4444",
-          }}>
-            {recovery.confidence === "high" ? "Precizie inalta" : recovery.confidence === "medium" ? "Precizie medie" : "Date limitate"}
-          </span>
-        </div>
+      {/* Large score number */}
+      <div className="flex items-baseline gap-3 mb-2">
+        <span
+          className="text-[36px] font-bold tabular-nums leading-none"
+          style={{ color }}
+        >
+          {score}
+        </span>
+        <span
+          className="text-[22px] font-bold"
+          style={{ color }}
+        >
+          {label}
+        </span>
+      </div>
 
-        {/* Component breakdown — horizontal pills */}
-        <div className="w-full">
-          <div className="flex flex-wrap justify-center gap-2">
-            {activeComponents.map((comp) => (
-              <div
-                key={comp.name}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px]"
-                style={{
-                  background: `${COMPONENT_COLORS[comp.name] || "#888"}12`,
-                  border: `1px solid ${COMPONENT_COLORS[comp.name] || "#888"}25`,
-                }}
-              >
-                <div
-                  className="w-1.5 h-1.5 rounded-full"
-                  style={{ background: COMPONENT_COLORS[comp.name] || "#888" }}
-                />
-                <span className="text-[var(--foreground-secondary)] font-medium">{comp.name}</span>
-                <span className="tabular-nums font-bold" style={{ color: COMPONENT_COLORS[comp.name] || "#888" }}>
+      {/* Message */}
+      <p
+        className="text-[15px] mb-5 leading-relaxed"
+        style={{ color: "rgba(235,235,245,0.6)" }}
+      >
+        {message}
+      </p>
+
+      {/* Confidence */}
+      <div className="mb-5">
+        <span
+          className="text-[11px] px-2.5 py-1 rounded-full font-medium"
+          style={{
+            background: recovery.confidence === "high" ? "rgba(52,199,89,0.15)" : recovery.confidence === "medium" ? "rgba(255,149,0,0.15)" : "rgba(255,59,48,0.15)",
+            color: recovery.confidence === "high" ? "#34C759" : recovery.confidence === "medium" ? "#FF9500" : "#FF3B30",
+          }}
+        >
+          {recovery.confidence === "high" ? "Precizie inalta" : recovery.confidence === "medium" ? "Precizie medie" : "Date limitate"}
+        </span>
+      </div>
+
+      {/* Component progress bars — Apple Activity style */}
+      <div className="space-y-3">
+        {activeComponents.map((comp) => {
+          const barColor = COMPONENT_COLORS[comp.name] || "#007AFF";
+          return (
+            <div key={comp.name}>
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-[13px] font-normal" style={{ color: "rgba(235,235,245,0.6)" }}>
+                  {comp.name}
+                </span>
+                <span
+                  className="text-[13px] font-bold tabular-nums"
+                  style={{ color: barColor }}
+                >
                   {comp.score}
                 </span>
               </div>
-            ))}
-          </div>
-        </div>
+              <div className="h-[6px] rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.08)" }}>
+                <div
+                  className="h-full rounded-full"
+                  style={{
+                    width: `${Math.min(comp.score, 100)}%`,
+                    background: barColor,
+                  }}
+                />
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );

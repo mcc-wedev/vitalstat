@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Area, ReferenceLine } from "recharts";
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Area } from "recharts";
 import type { DailySummary, SleepNight } from "@/lib/parser/healthTypes";
 import { calculateRecovery } from "@/lib/stats/recovery";
 import { sma } from "@/lib/stats/movingAverage";
@@ -31,7 +31,6 @@ export function RecoveryTimeline({ rhrData, hrvData, sleepData, exerciseData, re
 
     if (scores.length < 7) return [];
 
-    // Add 7-day SMA
     const rawScores = scores.map(d => d.score);
     const smoothed = sma(rawScores, 7);
 
@@ -39,14 +38,11 @@ export function RecoveryTimeline({ rhrData, hrvData, sleepData, exerciseData, re
       date: d.date,
       score: d.score,
       avg7: smoothed[i] !== null ? Math.round(smoothed[i]!) : null,
-      label: d.date.substring(5), // MM-DD
+      label: d.date.substring(5),
     }));
   }, [rhrData, hrvData, sleepData, exerciseData, respData, spo2Data, tempData]);
 
   if (data.length < 7) return null;
-
-  const getColor = (score: number) =>
-    score >= 80 ? "#10b981" : score >= 60 ? "#22d3ee" : score >= 40 ? "#f59e0b" : "#ef4444";
 
   const latestScore = data[data.length - 1]?.score ?? 0;
   const latestAvg = data[data.length - 1]?.avg7 ?? 0;
@@ -54,10 +50,10 @@ export function RecoveryTimeline({ rhrData, hrvData, sleepData, exerciseData, re
   return (
     <div className="glass p-4 animate-in">
       <div className="flex items-center justify-between mb-3">
-        <h3 className="text-xs font-semibold text-[var(--muted-strong)]">Evolutie Recovery Score</h3>
-        <div className="flex items-center gap-3 text-[10px]">
-          <span className="text-[var(--muted)]">Azi: <span className="font-medium" style={{ color: getColor(latestScore) }}>{latestScore}</span></span>
-          <span className="text-[var(--muted)]">Medie 7z: <span className="font-medium">{latestAvg}</span></span>
+        <h3 className="text-[17px] font-normal text-white">Evolutie Recovery Score</h3>
+        <div className="flex items-center gap-3 text-[13px]" style={{ color: "rgba(235,235,245,0.3)" }}>
+          <span>Azi: <span className="font-medium text-white">{latestScore}</span></span>
+          <span>Medie 7z: <span className="font-medium text-white">{latestAvg}</span></span>
         </div>
       </div>
 
@@ -66,29 +62,37 @@ export function RecoveryTimeline({ rhrData, hrvData, sleepData, exerciseData, re
           <LineChart data={data} margin={{ top: 5, right: 8, left: 0, bottom: 0 }}>
             <defs>
               <linearGradient id="scoreGrad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#10b981" stopOpacity={0.15} />
-                <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                <stop offset="5%" stopColor="#34C759" stopOpacity={0.2} />
+                <stop offset="95%" stopColor="#34C759" stopOpacity={0} />
               </linearGradient>
             </defs>
-            <XAxis dataKey="label" tick={{ fontSize: 10, fill: "rgba(255,255,255,0.35)" }} tickLine={false} axisLine={false} interval="preserveStartEnd" minTickGap={35} />
-            <YAxis domain={[0, 100]} tick={{ fontSize: 10, fill: "rgba(255,255,255,0.35)" }} tickLine={false} axisLine={false} width={32} />
+            <XAxis
+              dataKey="label"
+              tick={{ fontSize: 11, fill: "rgba(235,235,245,0.3)" }}
+              tickLine={false} axisLine={false}
+              interval="preserveStartEnd" minTickGap={35}
+            />
+            <YAxis
+              domain={[0, 100]}
+              tick={{ fontSize: 11, fill: "rgba(235,235,245,0.3)" }}
+              tickLine={false} axisLine={false} width={32}
+            />
             <Tooltip
-              contentStyle={{ background: "rgba(10,10,15,0.95)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, fontSize: 11 }}
+              contentStyle={{
+                background: "#1C1C1E",
+                border: "none",
+                borderRadius: 12,
+                fontSize: 13,
+                boxShadow: "0 8px 32px rgba(0,0,0,0.5)",
+              }}
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
               formatter={((v: any, name: any) => [String(v), name === "score" ? "Zilnic" : "Medie 7z"]) as any}
             />
-            <ReferenceLine y={60} stroke="rgba(255,255,255,0.08)" strokeDasharray="4 4" />
-            <ReferenceLine y={80} stroke="rgba(255,255,255,0.08)" strokeDasharray="4 4" />
-            <Area type="monotone" dataKey="score" fill="url(#scoreGrad)" stroke="none" />
-            <Line type="monotone" dataKey="score" stroke="rgba(255,255,255,0.15)" strokeWidth={1} dot={false} />
-            <Line type="monotone" dataKey="avg7" stroke="#10b981" strokeWidth={2} dot={false} />
+            <Area type="monotone" dataKey="avg7" fill="url(#scoreGrad)" stroke="none" />
+            <Line type="monotone" dataKey="score" stroke="rgba(255,255,255,0.12)" strokeWidth={1} dot={false} />
+            <Line type="monotone" dataKey="avg7" stroke="#34C759" strokeWidth={2.5} dot={false} />
           </LineChart>
         </ResponsiveContainer>
-      </div>
-
-      <div className="flex flex-wrap justify-center gap-3 sm:gap-4 mt-2 text-[10px] text-[var(--muted)]">
-        <span className="flex items-center gap-1"><span className="w-3 h-px inline-block" style={{ background: "rgba(255,255,255,0.15)" }} /> zilnic</span>
-        <span className="flex items-center gap-1"><span className="w-3 h-px inline-block bg-[#10b981]" /> medie 7z</span>
       </div>
     </div>
   );

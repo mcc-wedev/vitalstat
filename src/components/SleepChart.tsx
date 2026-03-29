@@ -71,7 +71,7 @@ export function SleepChart({ data, days = 30 }: SleepChartProps) {
 
   if (chartData.length === 0) {
     return (
-      <div className="glass p-6 text-center text-[var(--muted)]">
+      <div className="glass p-6 text-center" style={{ color: "rgba(235,235,245,0.3)" }}>
         Nu sunt date de somn disponibile
       </div>
     );
@@ -79,19 +79,19 @@ export function SleepChart({ data, days = 30 }: SleepChartProps) {
 
   return (
     <div className="space-y-4">
-      {/* Stats row — 2 cols on mobile, 3 on tablet, 5 on desktop */}
+      {/* Stats row */}
       {stats && (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
           {[
             { label: "Durata medie", value: `${stats.avgDuration}h`, good: Number(stats.avgDuration) >= 7 },
             { label: "Eficienta", value: `${stats.avgEfficiency}%`, good: Number(stats.avgEfficiency) >= 85 },
             { label: "Somn profund", value: `${stats.deepPct}%`, good: Number(stats.deepPct) >= 15 },
-            { label: "Regularitate", value: `±${stats.regularity}h`, good: Number(stats.regularity) < 1 },
+            { label: "Regularitate", value: `\u00b1${stats.regularity}h`, good: Number(stats.regularity) < 1 },
             { label: "Jet lag social", value: `${stats.socialJetLag}h`, good: Number(stats.socialJetLag) < 1 },
           ].map((s) => (
-            <div key={s.label} className="glass p-2.5 sm:p-3 text-center">
-              <p className="text-[9px] sm:text-[10px] text-[var(--muted)] mb-0.5">{s.label}</p>
-              <p className="text-base sm:text-lg font-bold" style={{ color: s.good ? "#10b981" : "#f59e0b" }}>
+            <div key={s.label} className="glass p-3 text-center">
+              <p className="text-[11px] mb-1" style={{ color: "rgba(235,235,245,0.3)" }}>{s.label}</p>
+              <p className="text-[22px] font-bold" style={{ color: s.good ? "#34C759" : "#FF9500" }}>
                 {s.value}
               </p>
             </div>
@@ -99,18 +99,23 @@ export function SleepChart({ data, days = 30 }: SleepChartProps) {
         </div>
       )}
 
-      {/* Stacked bar chart */}
+      {/* Stacked bar chart — purple theme */}
       <div className="glass p-4 sm:p-5">
         <div className="flex items-center justify-between mb-3">
-          <h3 className="text-xs sm:text-sm font-medium">
-            Stadii somn
-            <span className="text-[var(--muted)] ml-2 font-normal text-[10px]">ultimele {chartData.length}z</span>
-          </h3>
-          <div className="flex gap-2 sm:gap-3 text-[9px] text-[var(--muted)]">
-            <span className="flex items-center gap-1"><span className="w-2.5 h-2 rounded inline-block bg-blue-900" /> Profund</span>
-            <span className="flex items-center gap-1"><span className="w-2.5 h-2 rounded inline-block bg-blue-500" /> Usor</span>
-            <span className="flex items-center gap-1"><span className="w-2.5 h-2 rounded inline-block bg-purple-500" /> REM</span>
-            <span className="hidden sm:flex items-center gap-1"><span className="w-2.5 h-2 rounded inline-block bg-red-400/50" /> Treaz</span>
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 rounded-full" style={{ background: "#AF52DE" }} />
+            <h3 className="text-[17px] font-normal text-white">
+              Stadii somn
+            </h3>
+            <span className="text-[13px]" style={{ color: "rgba(235,235,245,0.3)" }}>
+              ultimele {chartData.length}z
+            </span>
+          </div>
+          <div className="flex gap-2 sm:gap-3 text-[11px]" style={{ color: "rgba(235,235,245,0.3)" }}>
+            <span className="flex items-center gap-1"><span className="w-2.5 h-2 rounded inline-block" style={{ background: "#5E35B1" }} /> Profund</span>
+            <span className="flex items-center gap-1"><span className="w-2.5 h-2 rounded inline-block" style={{ background: "#AF52DE" }} /> Usor</span>
+            <span className="flex items-center gap-1"><span className="w-2.5 h-2 rounded inline-block" style={{ background: "#CE93D8" }} /> REM</span>
+            <span className="hidden sm:flex items-center gap-1"><span className="w-2.5 h-2 rounded inline-block" style={{ background: "#FF3B30", opacity: 0.5 }} /> Treaz</span>
           </div>
         </div>
 
@@ -119,25 +124,24 @@ export function SleepChart({ data, days = 30 }: SleepChartProps) {
             <BarChart data={chartData} margin={{ top: 5, right: 8, bottom: 5, left: 0 }}>
               <XAxis
                 dataKey="date"
-                tick={{ fill: "rgba(255,255,255,0.35)", fontSize: 10 }}
+                tick={{ fill: "rgba(235,235,245,0.3)", fontSize: 11 }}
                 tickLine={false}
                 axisLine={false}
                 interval="preserveStartEnd"
                 minTickGap={35}
               />
               <YAxis
-                tick={{ fill: "rgba(255,255,255,0.35)", fontSize: 10 }}
+                tick={{ fill: "rgba(235,235,245,0.3)", fontSize: 11 }}
                 tickLine={false}
                 axisLine={false}
                 width={32}
               />
               <Tooltip
                 contentStyle={{
-                  background: "rgba(10,10,20,0.95)",
-                  backdropFilter: "blur(12px)",
-                  border: "1px solid rgba(255,255,255,0.1)",
-                  borderRadius: "10px",
-                  fontSize: "11px",
+                  background: "#1C1C1E",
+                  border: "none",
+                  borderRadius: "12px",
+                  fontSize: "13px",
                   boxShadow: "0 8px 32px rgba(0,0,0,0.5)",
                 }}
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -146,12 +150,12 @@ export function SleepChart({ data, days = 30 }: SleepChartProps) {
                   return [`${Number(val).toFixed(1)}h`, labels[String(name)] || String(name)];
                 }) as any}
               />
-              <ReferenceLine y={7} stroke="#10b981" strokeDasharray="4 4" strokeOpacity={0.4} />
-              <ReferenceLine y={9} stroke="#10b981" strokeDasharray="4 4" strokeOpacity={0.4} />
-              <Bar dataKey="deep" stackId="sleep" fill="#1e3a5f" radius={[0, 0, 0, 0]} isAnimationActive={false} />
-              <Bar dataKey="core" stackId="sleep" fill="#3b82f6" isAnimationActive={false} />
-              <Bar dataKey="rem" stackId="sleep" fill="#a855f7" isAnimationActive={false} />
-              <Bar dataKey="awake" stackId="sleep" fill="#f87171" fillOpacity={0.4} radius={[2, 2, 0, 0]} isAnimationActive={false} />
+              <ReferenceLine y={7} stroke="rgba(235,235,245,0.1)" strokeDasharray="4 4" />
+              <ReferenceLine y={9} stroke="rgba(235,235,245,0.1)" strokeDasharray="4 4" />
+              <Bar dataKey="deep" stackId="sleep" fill="#5E35B1" radius={[0, 0, 0, 0]} isAnimationActive={false} />
+              <Bar dataKey="core" stackId="sleep" fill="#AF52DE" isAnimationActive={false} />
+              <Bar dataKey="rem" stackId="sleep" fill="#CE93D8" isAnimationActive={false} />
+              <Bar dataKey="awake" stackId="sleep" fill="#FF3B30" fillOpacity={0.4} radius={[2, 2, 0, 0]} isAnimationActive={false} />
             </BarChart>
           </ResponsiveContainer>
         </div>

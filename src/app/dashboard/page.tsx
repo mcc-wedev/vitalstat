@@ -100,35 +100,49 @@ export default function Dashboard() {
     <div className="min-h-screen flex flex-col bg-gradient-subtle">
       <Onboarding />
 
-      {/* ═══ HEADER ═══ */}
-      <header className="sticky top-0 z-50 backdrop-blur-xl border-b border-[rgba(255,255,255,0.05)] bg-[rgba(9,9,11,0.88)]">
+      {/* ═══ HEADER — Apple style ═══ */}
+      <header className="sticky top-0 z-50 backdrop-blur-xl" style={{ borderBottom: "1px solid rgba(84,84,88,0.6)", background: "rgba(0,0,0,0.88)" }}>
         <div className="max-w-6xl mx-auto px-3 sm:px-5">
           {/* Top row */}
           <div className="flex items-center justify-between py-2.5">
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0" style={{ background: "linear-gradient(135deg, rgba(52,211,153,0.2) 0%, rgba(96,165,250,0.15) 100%)" }}>
-                <svg className="w-4.5 h-4.5 text-[var(--accent)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12z" />
-                </svg>
-              </div>
-              <div>
-                <h1 className="text-sm sm:text-base font-bold tracking-tight">VitalStat</h1>
-                <p className="text-[9px] text-[var(--foreground-muted)] hidden sm:block">
-                  {meta.totalRecords.toLocaleString()} inregistrari · {meta.dateRange.start} — {meta.dateRange.end}
-                </p>
-              </div>
+            <div>
+              <h1 className="text-[17px] font-bold text-white">VitalStat</h1>
+              <p className="text-[11px] hidden sm:block" style={{ color: "rgba(235,235,245,0.3)" }}>
+                {meta.totalRecords.toLocaleString()} inregistrari
+              </p>
             </div>
             <div className="flex items-center gap-1">
-              <button onClick={() => setShowActions(!showActions)} className="pill text-xs">
-                ⋯
+              {/* Force Refresh Button */}
+              <button
+                onClick={async () => {
+                  try {
+                    const reg = await navigator.serviceWorker?.getRegistration();
+                    if (reg) await reg.update();
+                  } catch {}
+                  try {
+                    const keys = await caches.keys();
+                    await Promise.all(keys.map(k => caches.delete(k)));
+                  } catch {}
+                  window.location.reload();
+                }}
+                className="pill text-[13px] flex items-center gap-1.5"
+                title="Actualizeaza"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2" />
+                </svg>
+                <span className="hidden sm:inline">Actualizeaza</span>
+              </button>
+              <button onClick={() => setShowActions(!showActions)} className="pill text-[13px]">
+                &#x22EF;
               </button>
               {showActions && (
                 <div className="flex items-center gap-1 animate-in">
                   <ShareCard metrics={metrics} sleepNights={sleepNights} />
                   <PDFExport metrics={metrics} sleepNights={sleepNights} />
                   <CSVExport metrics={metrics} sleepNights={sleepNights} />
-                  <button onClick={handleExport} className="pill text-[10px]" title="Exporta JSON">📤</button>
-                  <button onClick={handleReset} className="text-[10px] text-red-400/60 hover:text-red-400 px-2 py-1">Sterge</button>
+                  <button onClick={handleExport} className="pill text-[11px]" title="Exporta JSON">{"\ud83d\udce4"}</button>
+                  <button onClick={handleReset} className="text-[11px] px-2 py-1" style={{ color: "rgba(255,59,48,0.6)" }}>Sterge</button>
                 </div>
               )}
             </div>
@@ -142,7 +156,7 @@ export default function Dashboard() {
 
       {/* ═══ DESKTOP TABS (hidden on mobile) ═══ */}
       {!isDailyView && (
-        <nav className="desktop-tabs border-b border-[rgba(255,255,255,0.04)] bg-[rgba(9,9,11,0.6)]">
+        <nav className="desktop-tabs" style={{ borderBottom: "1px solid rgba(84,84,88,0.6)", background: "rgba(0,0,0,0.6)" }}>
           <div className="max-w-6xl mx-auto px-3 sm:px-5 tab-scroll flex">
             {TABS.map((tab) => (
               <button
@@ -264,11 +278,11 @@ function OneBigThing({ metrics, sleepNights }: { metrics: Record<string, DailySu
   if (!insight) return null;
 
   return (
-    <div className="card-premium p-5 sm:p-6">
-      <p className="text-[10px] uppercase tracking-widest text-[var(--foreground-muted)] font-bold mb-3">Cel mai important lucru</p>
+    <div className="glass p-5 sm:p-6">
+      <p className="text-[13px] mb-3" style={{ color: "rgba(235,235,245,0.3)" }}>Cel mai important lucru</p>
       <div className="flex items-center gap-3">
         <span className="text-2xl">{insight.icon}</span>
-        <p className="text-sm sm:text-base font-medium text-[var(--foreground-secondary)] leading-relaxed">{insight.text}</p>
+        <p className="text-[17px] font-normal leading-relaxed" style={{ color: "rgba(235,235,245,0.6)" }}>{insight.text}</p>
       </div>
     </div>
   );
@@ -312,20 +326,17 @@ function LongTermTrends({ metrics }: { metrics: Record<string, DailySummary[]> }
       <h2 className="section-header">Tendinte pe termen lung \u00b7 7d vs 7d anterioare</h2>
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         {trends.map((t) => (
-          <div key={t.label} className="card-premium p-4 sm:p-5">
-            <p className="text-[10px] uppercase tracking-wider text-[var(--foreground-muted)] font-medium mb-2">{t.label}</p>
-            <div className="flex items-end gap-2 mb-1">
-              <span className="text-xl sm:text-2xl font-bold tabular-nums">{t.current.toFixed(t.unit === "bpm" || t.unit === "ms" ? 0 : 0)}</span>
-              {t.unit && <span className="text-[10px] text-[var(--foreground-muted)] mb-0.5">{t.unit}</span>}
+          <div key={t.label} className="glass p-4 sm:p-5">
+            <p className="text-[13px] mb-2" style={{ color: "rgba(235,235,245,0.3)" }}>{t.label}</p>
+            <div className="flex items-baseline gap-1.5 mb-1">
+              <span className="text-[28px] font-bold tabular-nums">{t.current.toFixed(0)}</span>
+              {t.unit && <span className="text-[15px]" style={{ color: "rgba(235,235,245,0.6)" }}>{t.unit}</span>}
             </div>
             <div className="flex items-center gap-1.5">
-              <span className="text-sm font-bold" style={{ color: t.improved ? "#10b981" : "#ef4444" }}>
-                {t.pctChange > 0 ? "\u2191" : "\u2193"}
+              <span className="text-[13px] tabular-nums" style={{ color: t.improved ? "#34C759" : "#FF3B30" }}>
+                {t.pctChange > 0 ? "+" : ""}{t.pctChange.toFixed(1)}%
               </span>
-              <span className="text-xs font-semibold tabular-nums" style={{ color: t.improved ? "#10b981" : "#ef4444" }}>
-                {Math.abs(t.pctChange).toFixed(1)}%
-              </span>
-              <span className="text-[9px] text-[var(--foreground-muted)]">
+              <span className="text-[11px]" style={{ color: "rgba(235,235,245,0.3)" }}>
                 de la {t.previous.toFixed(0)} {t.unit}
               </span>
             </div>
@@ -386,9 +397,9 @@ function OverviewTab({
             targetDate={recoveryTargetDate}
           />
         </div>
-        <div className="lg:col-span-3 card-premium p-5 sm:p-6">
+        <div className="lg:col-span-3 glass p-5 sm:p-6">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-xs font-bold text-[var(--foreground-secondary)] uppercase tracking-wider">Ce trebuie sa stii</h3>
+            <h3 className="text-[17px] font-normal text-white">Ce trebuie sa stii</h3>
             <span className="badge badge-info">{periodLabel}</span>
           </div>
           <InsightsPanel metrics={metrics} sleepNights={sleepNights} maxItems={4} compact />
@@ -498,9 +509,10 @@ function OverviewTab({
       {!showAllInsights ? (
         <button
           onClick={() => setShowAllInsights(true)}
-          className="w-full card-premium p-5 text-center text-xs font-semibold text-[var(--accent)] hover:text-white cursor-pointer"
+          className="w-full glass p-5 text-center text-[15px] font-normal cursor-pointer"
+          style={{ color: "#007AFF" }}
         >
-          Vezi toate interpretarile \u2192
+          Vezi toate interpretarile {"\u2192"}
         </button>
       ) : (
         <section className="animate-in">
@@ -574,8 +586,8 @@ function CategoryTab({
         </>
       ) : (
         <div className="glass p-12 text-center">
-          <p className="text-lg mb-2 text-[var(--foreground-secondary)]">Nu sunt date disponibile</p>
-          <p className="text-sm text-[var(--foreground-muted)]">Aceasta categorie nu contine date in exportul tau Apple Health.</p>
+          <p className="text-[17px] mb-2 text-white">Nu sunt date disponibile</p>
+          <p className="text-[15px]" style={{ color: "rgba(235,235,245,0.6)" }}>Aceasta categorie nu contine date in exportul tau Apple Health.</p>
         </div>
       )}
 

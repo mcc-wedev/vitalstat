@@ -344,6 +344,25 @@ html, body { overflow-x: hidden; max-width: 100vw; }
 .no-scrollbar { scrollbar-width: none; -ms-overflow-style: none; }
 .no-scrollbar::-webkit-scrollbar { display: none; }
 
+/* CRITICAL: Recharts ResponsiveContainer fix for grid/flex parents */
+/* Without min-width:0, grid children expand to content width (infinite for SVG) */
+.glass, .metric-card, .card-premium {
+  min-width: 0;
+  overflow: hidden;
+}
+
+/* Force all grid children to respect grid boundaries */
+[class*="grid"] > * {
+  min-width: 0;
+  overflow: hidden;
+}
+
+/* Recharts containers must not exceed parent */
+.recharts-responsive-container {
+  max-width: 100% !important;
+  overflow: hidden !important;
+}
+
 @media (max-width: 640px) {
   main { padding-bottom: calc(var(--bottom-nav-height) + 16px) !important; }
   .metric-card { padding: 14px; }

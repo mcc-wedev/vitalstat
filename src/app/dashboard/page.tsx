@@ -179,11 +179,11 @@ export default function Dashboard() {
 
       {/* ═══ CONTENT ═══ */}
       {isDailyView && dailyDate ? (
-        <main className="flex-1 max-w-6xl mx-auto w-full px-3 sm:px-5 py-4 sm:py-6">
+        <main className="flex-1 max-w-6xl mx-auto w-full px-3 sm:px-5 py-4 sm:py-6 overflow-x-hidden">
           <DailyReport date={dailyDate} metrics={metrics} sleepNights={sleepNights} />
         </main>
       ) : (
-        <main className="flex-1 max-w-6xl mx-auto w-full px-3 sm:px-5 py-4 sm:py-6">
+        <main className="flex-1 max-w-6xl mx-auto w-full px-3 sm:px-5 py-4 sm:py-6 overflow-x-hidden">
           {activeTab === "overview" && (
             <OverviewTab metrics={filteredMetrics} sleepNights={filteredSleep} allMetrics={metrics} allSleep={sleepNights} metricsForCategory={metricsForCategory} datePreset={datePreset} />
           )}

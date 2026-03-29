@@ -31,7 +31,7 @@ export default function RootLayout({
       className="h-full antialiased"
       style={{ fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Display', system-ui, sans-serif" }}
     >
-      <body className="min-h-full flex flex-col">
+      <body className="min-h-full flex flex-col overflow-x-hidden">
         {children}
         <ServiceWorkerRegistrar />
       </body>

@@ -49,12 +49,16 @@ const COMPONENT_COLORS: Record<string, string> = {
   "Temperatura": "#ec4899",
 };
 
-export function HeroScore({ rhrData, hrvData, sleepData, exerciseData, respData, spo2Data, tempData }: HeroScoreProps) {
+export function HeroScore({ rhrData, hrvData, sleepData, exerciseData, respData, spo2Data, tempData, targetDate }: HeroScoreProps & { targetDate?: string }) {
   const recovery = useMemo(() => {
-    const allDates = [...rhrData.map(d => d.date), ...hrvData.map(d => d.date)];
-    const latestDate = allDates.sort().pop() || "";
-    return calculateRecovery(rhrData, hrvData, sleepData, latestDate, exerciseData, respData, spo2Data, tempData);
-  }, [rhrData, hrvData, sleepData, exerciseData, respData, spo2Data, tempData]);
+    // If targetDate is provided, use it; otherwise find the latest date in the data
+    let date = targetDate;
+    if (!date) {
+      const allDates = [...rhrData.map(d => d.date), ...hrvData.map(d => d.date)];
+      date = allDates.sort().pop() || "";
+    }
+    return calculateRecovery(rhrData, hrvData, sleepData, date, exerciseData, respData, spo2Data, tempData);
+  }, [rhrData, hrvData, sleepData, exerciseData, respData, spo2Data, tempData, targetDate]);
 
   if (!recovery.hasEnoughData) {
     return (

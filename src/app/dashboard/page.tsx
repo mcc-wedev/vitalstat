@@ -166,7 +166,7 @@ export default function Dashboard() {
       ) : (
         <main className="flex-1 max-w-6xl mx-auto w-full px-3 sm:px-5 py-4 sm:py-6">
           {activeTab === "overview" && (
-            <OverviewTab metrics={filteredMetrics} sleepNights={filteredSleep} allMetrics={metrics} allSleep={sleepNights} metricsForCategory={metricsForCategory} />
+            <OverviewTab metrics={filteredMetrics} sleepNights={filteredSleep} allMetrics={metrics} allSleep={sleepNights} metricsForCategory={metricsForCategory} datePreset={datePreset} />
           )}
           {activeTab === "sleep" && (
             <SleepTab metrics={filteredMetrics} sleepNights={filteredSleep} allSleep={sleepNights} />
@@ -217,16 +217,37 @@ export default function Dashboard() {
 //  OVERVIEW TAB — Restructured
 // ═══════════════════════════════════════
 function OverviewTab({
-  metrics, sleepNights, allMetrics, allSleep, metricsForCategory,
+  metrics, sleepNights, allMetrics, allSleep, metricsForCategory, datePreset,
 }: {
   metrics: Record<string, DailySummary[]>;
   sleepNights: SleepNight[];
   allMetrics: Record<string, DailySummary[]>;
   allSleep: SleepNight[];
   metricsForCategory: (cat: MetricCategory) => string[];
+  datePreset: string;
 }) {
   const [showAllInsights, setShowAllInsights] = useState(false);
   const [expandedSection, setExpandedSection] = useState<string | null>(null);
+
+  // Compute target date for recovery based on selected period
+  const recoveryTargetDate = useMemo(() => {
+    const today = new Date().toISOString().substring(0, 10);
+    const yesterday = new Date(Date.now() - 86400000).toISOString().substring(0, 10);
+    if (datePreset === "today") return today;
+    if (datePreset === "yesterday") return yesterday;
+    // For range periods (7d, 14d, 30d, etc.), use the latest date in the filtered data
+    const allDates = Object.values(metrics).flatMap(arr => arr.map(d => d.date));
+    return allDates.sort().pop() || today;
+  }, [datePreset, metrics]);
+
+  // Period label for display
+  const periodLabel = useMemo(() => {
+    const labels: Record<string, string> = {
+      today: "Azi", yesterday: "Ieri", "7d": "7 zile", "14d": "14 zile",
+      "30d": "30 zile", "90d": "90 zile", "6m": "6 luni", "1y": "1 an", all: "Tot"
+    };
+    return labels[datePreset] || "30 zile";
+  }, [datePreset]);
 
   const keyMetrics = ["restingHeartRate", "hrv", "oxygenSaturation", "vo2Max", "stepCount", "activeEnergy", "exerciseTime", "bodyMass"]
     .filter(k => metrics[k]?.length > 0);
@@ -244,12 +265,13 @@ function OverviewTab({
             respData={allMetrics.respiratoryRate}
             spo2Data={allMetrics.oxygenSaturation}
             tempData={allMetrics.wristTemperature}
+            targetDate={recoveryTargetDate}
           />
         </div>
         <div className="lg:col-span-3 glass p-4 sm:p-5">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-xs font-bold text-[var(--foreground-secondary)] uppercase tracking-wider">Ce trebuie sa stii</h3>
-            <span className="badge badge-info">Azi</span>
+            <span className="badge badge-info">{periodLabel}</span>
           </div>
           <InsightsPanel metrics={metrics} sleepNights={sleepNights} maxItems={4} compact />
         </div>
@@ -267,15 +289,15 @@ function OverviewTab({
 
       {/* ── ALERTS (only when issues detected) ── */}
       <TrendAlerts metrics={metrics} sleepNights={sleepNights} />
-      <RecoveryPrediction metrics={allMetrics} sleepNights={allSleep} />
+      <RecoveryPrediction metrics={allMetrics} sleepNights={allSleep} targetDate={recoveryTargetDate} />
 
       {/* ── DIVIDER ── */}
       <div className="divider" />
 
       {/* ── TRAINING & AGING ── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <StrainCoach metrics={allMetrics} sleepNights={allSleep} />
-        <BiologicalAge metrics={allMetrics} sleepNights={allSleep} />
+        <StrainCoach metrics={metrics} sleepNights={sleepNights} />
+        <BiologicalAge metrics={metrics} sleepNights={sleepNights} />
       </div>
 
       {/* ── TREND CHARTS ── */}
@@ -303,7 +325,7 @@ function OverviewTab({
       <section>
         <h2 className="section-header">Analiza aprofundata</h2>
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          <ResilienceScore metrics={allMetrics} sleepNights={allSleep} />
+          <ResilienceScore metrics={metrics} sleepNights={sleepNights} />
           <StabilityScores metrics={metrics} sleepNights={sleepNights} />
           <SleepBank sleepNights={sleepNights} />
         </div>
@@ -311,8 +333,8 @@ function OverviewTab({
 
       {/* ── BEHAVIOR & TRENDS ── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <BehaviorJournal metrics={allMetrics} sleepNights={allSleep} />
-        <MonthlyRecap metrics={allMetrics} sleepNights={allSleep} />
+        <BehaviorJournal metrics={metrics} sleepNights={sleepNights} />
+        <MonthlyRecap metrics={metrics} sleepNights={sleepNights} />
       </div>
 
       {/* ── DIVIDER ── */}
@@ -322,20 +344,20 @@ function OverviewTab({
       <section>
         <h2 className="section-header">Simulari & Comparatii</h2>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <WhatIfSimulator metrics={allMetrics} sleepNights={allSleep} />
-          <AgeBenchmark metrics={allMetrics} />
+          <WhatIfSimulator metrics={metrics} sleepNights={sleepNights} />
+          <AgeBenchmark metrics={metrics} />
         </div>
       </section>
 
       {/* ── TIMELINE ── */}
       <RecoveryTimeline
-        rhrData={allMetrics.restingHeartRate || []}
-        hrvData={allMetrics.hrv || []}
-        sleepData={allSleep}
-        exerciseData={allMetrics.exerciseTime}
-        respData={allMetrics.respiratoryRate}
-        spo2Data={allMetrics.oxygenSaturation}
-        tempData={allMetrics.wristTemperature}
+        rhrData={metrics.restingHeartRate || []}
+        hrvData={metrics.hrv || []}
+        sleepData={sleepNights}
+        exerciseData={metrics.exerciseTime}
+        respData={metrics.respiratoryRate}
+        spo2Data={metrics.oxygenSaturation}
+        tempData={metrics.wristTemperature}
       />
 
       {/* ── HEATMAPS ── */}

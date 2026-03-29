@@ -8,15 +8,16 @@ import { calculateRecovery } from "@/lib/stats/recovery";
 interface Props {
   metrics: Record<string, DailySummary[]>;
   sleepNights: SleepNight[];
+  targetDate?: string;
 }
 
-export function RecoveryPrediction({ metrics, sleepNights }: Props) {
+export function RecoveryPrediction({ metrics, sleepNights, targetDate }: Props) {
   const prediction = useMemo(() => {
     const hrv = metrics.hrv;
     const rhr = metrics.restingHeartRate;
     if (!hrv || hrv.length < 30 || !rhr || rhr.length < 30) return null;
 
-    const latestDate = [...hrv.map(d => d.date), ...rhr.map(d => d.date)].sort().pop() || "";
+    const latestDate = targetDate || [...hrv.map(d => d.date), ...rhr.map(d => d.date)].sort().pop() || "";
     const recovery = calculateRecovery(rhr, hrv, sleepNights, latestDate, metrics.exerciseTime, metrics.respiratoryRate, metrics.oxygenSaturation, metrics.wristTemperature);
 
     if (!recovery.hasEnoughData || recovery.total >= 75) return null; // Already recovered
@@ -58,9 +59,9 @@ export function RecoveryPrediction({ metrics, sleepNights }: Props) {
       estimatedDays = recovery.total < 30 ? 3 : recovery.total < 50 ? 2 : 1;
     }
 
-    const targetDate = new Date();
-    targetDate.setDate(targetDate.getDate() + estimatedDays);
-    const dayName = targetDate.toLocaleDateString("ro-RO", { weekday: "long" });
+    const recoveryDate = new Date();
+    recoveryDate.setDate(recoveryDate.getDate() + estimatedDays);
+    const dayName = recoveryDate.toLocaleDateString("ro-RO", { weekday: "long" });
 
     const tips = recovery.total < 40
       ? "Prioriteaza: 9+ ore somn, hidratare, zero alcool, zero antrenament intens."

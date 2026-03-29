@@ -95,18 +95,18 @@ export function CircadianMap({ sleepNights }: Props) {
       <h3 className="text-xs font-semibold text-[var(--muted-strong)] mb-3">Ritmul tau circadian</h3>
 
       {/* Key stats */}
-      <div className="grid grid-cols-3 gap-2 mb-4">
-        <div className="rounded-lg p-2.5 text-center" style={{ background: "rgba(99,102,241,0.08)" }}>
-          <div className="text-[9px] text-[var(--muted)]">Culcare medie</div>
-          <div className="text-base font-bold text-indigo-400">{data.avgBedtime}</div>
+      <div className="grid grid-cols-3 gap-1.5 sm:gap-2 mb-4">
+        <div className="rounded-lg p-2 sm:p-2.5 text-center" style={{ background: "rgba(99,102,241,0.08)" }}>
+          <div className="text-[8px] sm:text-[9px] text-[var(--foreground-muted)]">Culcare</div>
+          <div className="text-sm sm:text-base font-bold text-indigo-400">{data.avgBedtime}</div>
         </div>
-        <div className="rounded-lg p-2.5 text-center" style={{ background: "rgba(245,158,11,0.08)" }}>
-          <div className="text-[9px] text-[var(--muted)]">Trezire medie</div>
-          <div className="text-base font-bold text-amber-400">{data.avgWake}</div>
+        <div className="rounded-lg p-2 sm:p-2.5 text-center" style={{ background: "rgba(245,158,11,0.08)" }}>
+          <div className="text-[8px] sm:text-[9px] text-[var(--foreground-muted)]">Trezire</div>
+          <div className="text-sm sm:text-base font-bold text-amber-400">{data.avgWake}</div>
         </div>
-        <div className="rounded-lg p-2.5 text-center" style={{ background: "rgba(16,185,129,0.08)" }}>
-          <div className="text-[9px] text-[var(--muted)]">Cronotip</div>
-          <div className="text-xs font-bold text-emerald-400 mt-0.5">{data.chronotype}</div>
+        <div className="rounded-lg p-2 sm:p-2.5 text-center" style={{ background: "rgba(16,185,129,0.08)" }}>
+          <div className="text-[8px] sm:text-[9px] text-[var(--foreground-muted)]">Cronotip</div>
+          <div className="text-[10px] sm:text-xs font-bold text-emerald-400 mt-0.5 truncate">{data.chronotype}</div>
         </div>
       </div>
 

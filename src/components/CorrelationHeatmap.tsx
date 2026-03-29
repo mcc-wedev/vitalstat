@@ -89,14 +89,14 @@ export function CorrelationHeatmap({ metrics }: Props) {
       <h3 className="text-xs font-semibold text-[var(--muted-strong)] mb-3">Matrice de corelatii</h3>
       <p className="text-[10px] text-[var(--muted)] mb-3">Doar corelatii cu p&lt;0.05. Verde = corelatie pozitiva, Rosu = negativa.</p>
 
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto no-scrollbar -mx-2 px-2">
         <div className="inline-grid gap-px" style={{
-          gridTemplateColumns: `60px repeat(${availableKeys.length}, 40px)`,
+          gridTemplateColumns: `50px repeat(${availableKeys.length}, 36px)`,
         }}>
           {/* Header row */}
           <div />
           {availableKeys.map(k => (
-            <div key={k} className="text-[8px] text-[var(--muted)] text-center truncate px-0.5 -rotate-45 origin-bottom-left h-10 flex items-end justify-center">
+            <div key={k} className="text-[7px] sm:text-[8px] text-[var(--foreground-muted)] text-center truncate px-0.5 -rotate-45 origin-bottom-left h-8 sm:h-10 flex items-end justify-center">
               {getLabel(k)}
             </div>
           ))}
@@ -104,17 +104,17 @@ export function CorrelationHeatmap({ metrics }: Props) {
           {/* Data rows */}
           {availableKeys.map(xKey => (
             <div key={xKey} className="contents">
-              <div className="text-[9px] text-[var(--muted)] flex items-center pr-1 truncate">{getLabel(xKey)}</div>
+              <div className="text-[8px] sm:text-[9px] text-[var(--foreground-muted)] flex items-center pr-1 truncate">{getLabel(xKey)}</div>
               {availableKeys.map(yKey => {
                 const cell = matrix[xKey]?.[yKey];
-                if (!cell) return <div key={yKey} className="w-10 h-10" />;
+                if (!cell) return <div key={yKey} className="w-9 h-9" />;
                 const isDiag = xKey === yKey;
 
                 return (
                   <button
                     key={yKey}
                     onClick={() => !isDiag && cell.p < 0.05 && setSelected(cell)}
-                    className="w-10 h-10 rounded text-[8px] font-medium tabular-nums flex items-center justify-center cursor-pointer hover:ring-1 hover:ring-white/20"
+                    className="w-9 h-9 rounded text-[7px] sm:text-[8px] font-medium tabular-nums flex items-center justify-center cursor-pointer active:ring-1 active:ring-white/20"
                     style={{ background: isDiag ? "rgba(255,255,255,0.08)" : getColor(cell.r, cell.p) }}
                     title={isDiag ? "" : `r=${cell.r.toFixed(2)}, p=${cell.p.toFixed(3)}, n=${cell.n}`}
                   >

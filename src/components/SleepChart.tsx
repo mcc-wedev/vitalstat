@@ -114,22 +114,22 @@ export function SleepChart({ data, days = 30 }: SleepChartProps) {
           </div>
         </div>
 
-        <div className="h-40 sm:h-48 w-full">
+        <div className="h-44 sm:h-52 w-full">
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={chartData} margin={{ top: 5, right: 5, bottom: 5, left: -15 }}>
+            <BarChart data={chartData} margin={{ top: 5, right: 8, bottom: 5, left: 0 }}>
               <XAxis
                 dataKey="date"
-                tick={{ fill: "rgba(255,255,255,0.3)", fontSize: 9 }}
+                tick={{ fill: "rgba(255,255,255,0.35)", fontSize: 10 }}
                 tickLine={false}
                 axisLine={false}
                 interval="preserveStartEnd"
-                minTickGap={25}
+                minTickGap={35}
               />
               <YAxis
-                tick={{ fill: "rgba(255,255,255,0.3)", fontSize: 9 }}
+                tick={{ fill: "rgba(255,255,255,0.35)", fontSize: 10 }}
                 tickLine={false}
                 axisLine={false}
-                width={28}
+                width={32}
               />
               <Tooltip
                 contentStyle={{

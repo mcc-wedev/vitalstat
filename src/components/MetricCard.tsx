@@ -83,14 +83,14 @@ export function MetricCard({ metricKey, data, onClick }: MetricCardProps) {
       </div>
 
       {sparkData.length > 3 && (
-        <div className="h-7 sm:h-8 w-full opacity-50">
+        <div className="h-8 sm:h-10 w-full opacity-60">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={sparkData} margin={{ top: 2, right: 2, bottom: 2, left: 2 }}>
               <Line
                 type="monotone"
                 dataKey="v"
                 stroke={config.color}
-                strokeWidth={1.5}
+                strokeWidth={1.8}
                 dot={false}
                 isAnimationActive={false}
               />

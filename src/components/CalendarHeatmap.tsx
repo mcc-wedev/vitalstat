@@ -93,14 +93,14 @@ export function CalendarHeatmap({ metrics }: Props) {
         </select>
       </div>
 
-      <div className="overflow-x-auto">
-        <div className="inline-flex gap-px">
+      <div className="overflow-x-auto no-scrollbar -mx-2 px-2">
+        <div className="inline-flex gap-[2px]">
           {weeks.map((week, wi) => (
-            <div key={wi} className="flex flex-col gap-px">
+            <div key={wi} className="flex flex-col gap-[2px]">
               {week.map(cell => (
                 <div
                   key={cell.date}
-                  className="w-3 h-3 rounded-sm"
+                  className="w-[10px] h-[10px] sm:w-3 sm:h-3 rounded-[2px]"
                   style={{ background: COLORS[cell.level] }}
                   title={`${cell.label}: ${cell.value.toFixed(0)} ${METRIC_CONFIG[selectedKey]?.unit || ""}`}
                 />

@@ -61,17 +61,17 @@ export function RecoveryTimeline({ rhrData, hrvData, sleepData, exerciseData, re
         </div>
       </div>
 
-      <div className="h-40">
+      <div className="h-44 sm:h-48">
         <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={data} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
+          <LineChart data={data} margin={{ top: 5, right: 8, left: 0, bottom: 0 }}>
             <defs>
               <linearGradient id="scoreGrad" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="5%" stopColor="#10b981" stopOpacity={0.15} />
                 <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
               </linearGradient>
             </defs>
-            <XAxis dataKey="label" tick={{ fontSize: 9, fill: "rgba(255,255,255,0.3)" }} tickLine={false} axisLine={false} interval="preserveStartEnd" />
-            <YAxis domain={[0, 100]} tick={{ fontSize: 9, fill: "rgba(255,255,255,0.3)" }} tickLine={false} axisLine={false} width={30} />
+            <XAxis dataKey="label" tick={{ fontSize: 10, fill: "rgba(255,255,255,0.35)" }} tickLine={false} axisLine={false} interval="preserveStartEnd" minTickGap={35} />
+            <YAxis domain={[0, 100]} tick={{ fontSize: 10, fill: "rgba(255,255,255,0.35)" }} tickLine={false} axisLine={false} width={32} />
             <Tooltip
               contentStyle={{ background: "rgba(10,10,15,0.95)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, fontSize: 11 }}
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -86,7 +86,7 @@ export function RecoveryTimeline({ rhrData, hrvData, sleepData, exerciseData, re
         </ResponsiveContainer>
       </div>
 
-      <div className="flex justify-center gap-4 mt-2 text-[9px] text-[var(--muted)]">
+      <div className="flex flex-wrap justify-center gap-3 sm:gap-4 mt-2 text-[10px] text-[var(--muted)]">
         <span className="flex items-center gap-1"><span className="w-3 h-px inline-block" style={{ background: "rgba(255,255,255,0.15)" }} /> zilnic</span>
         <span className="flex items-center gap-1"><span className="w-3 h-px inline-block bg-[#10b981]" /> medie 7z</span>
       </div>

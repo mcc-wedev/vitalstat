@@ -74,9 +74,9 @@ export function TrendChart({ metricKey, data }: TrendChartProps) {
         </div>
       </div>
 
-      <div className="h-44 sm:h-52 w-full">
+      <div className="h-48 sm:h-56 w-full">
         <ResponsiveContainer width="100%" height="100%">
-          <ComposedChart data={chartData} margin={{ top: 5, right: 5, bottom: 5, left: -15 }}>
+          <ComposedChart data={chartData} margin={{ top: 5, right: 8, bottom: 5, left: 0 }}>
             <defs>
               <linearGradient id={`ci-${metricKey}`} x1="0" y1="0" x2="0" y2="1">
                 <stop offset="5%" stopColor={config.color} stopOpacity={0.12} />
@@ -85,15 +85,15 @@ export function TrendChart({ metricKey, data }: TrendChartProps) {
             </defs>
             <XAxis
               dataKey="dateShort"
-              tick={{ fill: "rgba(255,255,255,0.3)", fontSize: 9 }}
+              tick={{ fill: "rgba(255,255,255,0.35)", fontSize: 10 }}
               tickLine={false} axisLine={false}
               interval="preserveStartEnd"
-              minTickGap={30}
+              minTickGap={40}
             />
             <YAxis
               domain={["auto", "auto"]}
-              tick={{ fill: "rgba(255,255,255,0.3)", fontSize: 9 }}
-              tickLine={false} axisLine={false} width={35}
+              tick={{ fill: "rgba(255,255,255,0.35)", fontSize: 10 }}
+              tickLine={false} axisLine={false} width={38}
             />
             <Tooltip
               contentStyle={{

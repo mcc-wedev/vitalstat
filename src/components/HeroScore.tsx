@@ -70,17 +70,17 @@ export function HeroScore({ rhrData, hrvData, sleepData, exerciseData, respData,
   const message = getScoreMessage(score);
   const activeComponents = recovery.components.filter(c => c.available);
 
-  const size = 160;
-  const strokeWidth = 10;
+  const size = 140;
+  const strokeWidth = 9;
   const radius = (size - strokeWidth * 2) / 2;
   const circumference = 2 * Math.PI * radius;
   const arcLength = circumference * 0.75;
   const progress = (score / 100) * arcLength;
 
   return (
-    <div className="glass p-5 animate-in">
-      <div className="flex items-center gap-5">
-        {/* Gauge — compact */}
+    <div className="glass p-4 sm:p-5 animate-in">
+      <div className="flex flex-col sm:flex-row items-center gap-3 sm:gap-5">
+        {/* Gauge — responsive */}
         <div className="relative shrink-0" style={{ width: size, height: size }}>
           <svg width={size} height={size} className="transform rotate-[135deg]">
             <circle

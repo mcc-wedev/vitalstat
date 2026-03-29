@@ -36,25 +36,25 @@ import type { DailySummary, SleepNight } from "@/lib/parser/healthTypes";
 import { Onboarding } from "@/components/Onboarding";
 import { clearData, exportAllData } from "@/lib/db/indexedDB";
 
-const TABS: { key: MetricCategory | "overview"; label: string }[] = [
-  { key: "overview", label: "Sumar" },
-  { key: "cardio", label: "Cardio" },
-  { key: "sleep", label: "Somn" },
-  { key: "activity", label: "Activitate" },
-  { key: "mobility", label: "Mobilitate" },
-  { key: "body", label: "Corp" },
-  { key: "wellbeing", label: "Wellbeing" },
+const TABS: { key: MetricCategory | "overview"; label: string; icon: string }[] = [
+  { key: "overview", label: "Sumar", icon: "📊" },
+  { key: "cardio", label: "Cardio", icon: "❤️" },
+  { key: "sleep", label: "Somn", icon: "🌙" },
+  { key: "activity", label: "Activitate", icon: "🏃" },
+  { key: "mobility", label: "Mobilitate", icon: "🦿" },
+  { key: "body", label: "Corp", icon: "⚖️" },
+  { key: "wellbeing", label: "Wellbeing", icon: "🧘" },
 ];
 
 export default function Dashboard() {
   const router = useRouter();
   const { hasData, metrics, sleepNights, meta, activeTab, setActiveTab, datePreset, clearData: clearStore } = useHealthStore();
+  const [showActions, setShowActions] = useState(false);
 
   useEffect(() => {
     if (!hasData) router.push("/");
   }, [hasData, router]);
 
-  // Filter all data by selected date range
   const bounds = useMemo(() => getDateBounds(datePreset, meta), [datePreset, meta]);
   const filteredMetrics = useMemo(() => {
     const result: Record<string, DailySummary[]> = {};
@@ -65,7 +65,6 @@ export default function Dashboard() {
   }, [metrics, bounds]);
   const filteredSleep = useMemo(() => filterSleepByDate(sleepNights, bounds), [sleepNights, bounds]);
 
-  // Is single-day view? (today or yesterday)
   const isDailyView = datePreset === "today" || datePreset === "yesterday";
   const dailyDate = useMemo(() => {
     if (datePreset === "today") return new Date().toISOString().substring(0, 10);
@@ -100,81 +99,123 @@ export default function Dashboard() {
   return (
     <div className="min-h-screen flex flex-col bg-gradient-subtle">
       <Onboarding />
-      {/* Header */}
-      <header className="sticky top-0 z-50 backdrop-blur-xl border-b border-[var(--glass-border)] bg-[rgba(5,5,8,0.85)]">
-        <div className="max-w-6xl mx-auto px-3 sm:px-4">
+
+      {/* ═══ HEADER ═══ */}
+      <header className="sticky top-0 z-50 backdrop-blur-xl border-b border-[rgba(255,255,255,0.05)] bg-[rgba(9,9,11,0.88)]">
+        <div className="max-w-6xl mx-auto px-3 sm:px-5">
+          {/* Top row */}
           <div className="flex items-center justify-between py-2.5">
-            <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{ background: "rgba(16,185,129,0.15)" }}>
-                <svg className="w-4 h-4 text-[#10b981]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0" style={{ background: "linear-gradient(135deg, rgba(52,211,153,0.2) 0%, rgba(96,165,250,0.15) 100%)" }}>
+                <svg className="w-4.5 h-4.5 text-[var(--accent)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12z" />
                 </svg>
               </div>
-              <h1 className="text-sm sm:text-base font-bold">VitalStat</h1>
+              <div>
+                <h1 className="text-sm sm:text-base font-bold tracking-tight">VitalStat</h1>
+                <p className="text-[9px] text-[var(--foreground-muted)] hidden sm:block">
+                  {meta.totalRecords.toLocaleString()} inregistrari · {meta.dateRange.start} — {meta.dateRange.end}
+                </p>
+              </div>
             </div>
             <div className="flex items-center gap-1">
-              <ShareCard metrics={metrics} sleepNights={sleepNights} />
-              <PDFExport metrics={metrics} sleepNights={sleepNights} />
-              <CSVExport metrics={metrics} sleepNights={sleepNights} />
-              <button onClick={handleExport} className="pill text-[10px]" title="Exporta date JSON">📤</button>
-              <button onClick={handleReset} className="text-[10px] text-red-400/60 hover:text-red-400 px-2">Sterge</button>
+              <button onClick={() => setShowActions(!showActions)} className="pill text-xs">
+                ⋯
+              </button>
+              {showActions && (
+                <div className="flex items-center gap-1 animate-in">
+                  <ShareCard metrics={metrics} sleepNights={sleepNights} />
+                  <PDFExport metrics={metrics} sleepNights={sleepNights} />
+                  <CSVExport metrics={metrics} sleepNights={sleepNights} />
+                  <button onClick={handleExport} className="pill text-[10px]" title="Exporta JSON">📤</button>
+                  <button onClick={handleReset} className="text-[10px] text-red-400/60 hover:text-red-400 px-2 py-1">Sterge</button>
+                </div>
+              )}
             </div>
           </div>
-          <div className="flex items-center justify-between pb-2 gap-2">
+          {/* Date range */}
+          <div className="pb-2">
             <DateRangePicker />
-            <span className="hidden sm:inline text-[10px] text-[var(--muted)] shrink-0">
-              {meta.totalRecords.toLocaleString()} inreg.
-            </span>
           </div>
         </div>
       </header>
 
-      {/* Daily view: no tabs, show DailyReport directly */}
+      {/* ═══ DESKTOP TABS (hidden on mobile) ═══ */}
+      {!isDailyView && (
+        <nav className="desktop-tabs border-b border-[rgba(255,255,255,0.04)] bg-[rgba(9,9,11,0.6)]">
+          <div className="max-w-6xl mx-auto px-3 sm:px-5 tab-scroll flex">
+            {TABS.map((tab) => (
+              <button
+                key={tab.key}
+                onClick={() => setActiveTab(tab.key)}
+                className={`tab-btn ${activeTab === tab.key ? "tab-active" : ""}`}
+              >
+                <span className="mr-1.5 text-xs">{tab.icon}</span>
+                {tab.label}
+              </button>
+            ))}
+          </div>
+        </nav>
+      )}
+
+      {/* ═══ CONTENT ═══ */}
       {isDailyView && dailyDate ? (
-        <main className="flex-1 max-w-6xl mx-auto w-full px-3 sm:px-4 py-4 sm:py-6">
+        <main className="flex-1 max-w-6xl mx-auto w-full px-3 sm:px-5 py-4 sm:py-6">
           <DailyReport date={dailyDate} metrics={metrics} sleepNights={sleepNights} />
         </main>
       ) : (
-        <>
-          {/* Tabs */}
-          <nav className="border-b border-[var(--glass-border)] bg-[rgba(5,5,8,0.5)]">
-            <div className="max-w-6xl mx-auto px-3 sm:px-4 tab-scroll flex">
-              {TABS.map((tab) => (
-                <button
-                  key={tab.key}
-                  onClick={() => setActiveTab(tab.key)}
-                  className={`tab-btn ${activeTab === tab.key ? "tab-active" : ""}`}
-                >
-                  {tab.label}
-                </button>
-              ))}
-            </div>
-          </nav>
-
-          {/* Content */}
-          <main className="flex-1 max-w-6xl mx-auto w-full px-3 sm:px-4 py-4 sm:py-6">
-            {activeTab === "overview" && (
-              <OverviewTab metrics={filteredMetrics} sleepNights={filteredSleep} allMetrics={metrics} allSleep={sleepNights} metricsForCategory={metricsForCategory} />
-            )}
-            {activeTab === "sleep" && (
-              <SleepTab metrics={filteredMetrics} sleepNights={filteredSleep} allSleep={sleepNights} />
-            )}
-            {activeTab !== "overview" && activeTab !== "sleep" && (
-              <CategoryTab
-                category={activeTab}
-                metrics={filteredMetrics}
-                sleepNights={filteredSleep}
-                availableKeys={metricsForCategory(activeTab)}
-              />
-            )}
-          </main>
-        </>
+        <main className="flex-1 max-w-6xl mx-auto w-full px-3 sm:px-5 py-4 sm:py-6">
+          {activeTab === "overview" && (
+            <OverviewTab metrics={filteredMetrics} sleepNights={filteredSleep} allMetrics={metrics} allSleep={sleepNights} metricsForCategory={metricsForCategory} />
+          )}
+          {activeTab === "sleep" && (
+            <SleepTab metrics={filteredMetrics} sleepNights={filteredSleep} allSleep={sleepNights} />
+          )}
+          {activeTab !== "overview" && activeTab !== "sleep" && (
+            <CategoryTab
+              category={activeTab}
+              metrics={filteredMetrics}
+              sleepNights={filteredSleep}
+              availableKeys={metricsForCategory(activeTab)}
+            />
+          )}
+        </main>
       )}
+
+      {/* ═══ MOBILE BOTTOM NAV ═══ */}
+      <nav className="bottom-nav">
+        {TABS.slice(0, 5).map((tab) => (
+          <button
+            key={tab.key}
+            onClick={() => setActiveTab(tab.key)}
+            className={`bottom-nav-item ${activeTab === tab.key ? "active" : ""}`}
+          >
+            <span className="nav-icon">{tab.icon}</span>
+            <span>{tab.label}</span>
+            {activeTab === tab.key && <div className="nav-dot" />}
+          </button>
+        ))}
+        <button
+          onClick={() => {
+            // Cycle through remaining tabs
+            const extraTabs = TABS.slice(5);
+            const currentIdx = extraTabs.findIndex(t => t.key === activeTab);
+            const next = extraTabs[(currentIdx + 1) % extraTabs.length];
+            setActiveTab(next.key);
+          }}
+          className={`bottom-nav-item ${TABS.slice(5).some(t => t.key === activeTab) ? "active" : ""}`}
+        >
+          <span className="nav-icon">⋯</span>
+          <span>Mai mult</span>
+        </button>
+      </nav>
     </div>
   );
 }
 
-// ═══ COMPACT OVERVIEW TAB ═══
+// ═══════════════════════════════════════
+//  OVERVIEW TAB — Restructured
+// ═══════════════════════════════════════
 function OverviewTab({
   metrics, sleepNights, allMetrics, allSleep, metricsForCategory,
 }: {
@@ -185,85 +226,108 @@ function OverviewTab({
   metricsForCategory: (cat: MetricCategory) => string[];
 }) {
   const [showAllInsights, setShowAllInsights] = useState(false);
+  const [expandedSection, setExpandedSection] = useState<string | null>(null);
 
-  // Key metrics to always show on overview (if data exists)
   const keyMetrics = ["restingHeartRate", "hrv", "oxygenSaturation", "vo2Max", "stepCount", "activeEnergy", "exerciseTime", "bodyMass"]
     .filter(k => metrics[k]?.length > 0);
 
   return (
     <div className="space-y-5">
-      {/* Row 1: Recovery Score + Top Insights side-by-side */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <HeroScore
-          rhrData={allMetrics.restingHeartRate || []}
-          hrvData={allMetrics.hrv || []}
-          sleepData={allSleep}
-          exerciseData={allMetrics.exerciseTime}
-          respData={allMetrics.respiratoryRate}
-          spo2Data={allMetrics.oxygenSaturation}
-          tempData={allMetrics.wristTemperature}
-        />
-        <div className="glass p-4">
-          <h3 className="text-xs font-semibold text-[var(--muted-strong)] mb-3">Interpretari prioritare</h3>
-          <InsightsPanel metrics={metrics} sleepNights={sleepNights} maxItems={3} compact />
+      {/* ── HERO: Recovery Score + Priority Insights ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
+        <div className="lg:col-span-2">
+          <HeroScore
+            rhrData={allMetrics.restingHeartRate || []}
+            hrvData={allMetrics.hrv || []}
+            sleepData={allSleep}
+            exerciseData={allMetrics.exerciseTime}
+            respData={allMetrics.respiratoryRate}
+            spo2Data={allMetrics.oxygenSaturation}
+            tempData={allMetrics.wristTemperature}
+          />
+        </div>
+        <div className="lg:col-span-3 glass p-4 sm:p-5">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-xs font-bold text-[var(--foreground-secondary)] uppercase tracking-wider">Ce trebuie sa stii</h3>
+            <span className="badge badge-info">Azi</span>
+          </div>
+          <InsightsPanel metrics={metrics} sleepNights={sleepNights} maxItems={4} compact />
         </div>
       </div>
 
-      {/* Row 2: Key metric cards */}
+      {/* ── KEY METRICS GRID ── */}
       <section>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+        <h2 className="section-header">Metrici principale</h2>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 stagger-in">
           {keyMetrics.map((key) => (
             <MetricCard key={key} metricKey={key} data={metrics[key]} />
           ))}
         </div>
       </section>
 
-      {/* Trend Alerts (appear only when something is wrong) */}
+      {/* ── ALERTS (only when issues detected) ── */}
       <TrendAlerts metrics={metrics} sleepNights={sleepNights} />
-
-      {/* Recovery Prediction (appears only when recovery is low) */}
       <RecoveryPrediction metrics={allMetrics} sleepNights={allSleep} />
 
-      {/* Row 3: Strain Coach + Biological Age */}
+      {/* ── DIVIDER ── */}
+      <div className="divider" />
+
+      {/* ── TRAINING & AGING ── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <StrainCoach metrics={allMetrics} sleepNights={allSleep} />
         <BiologicalAge metrics={allMetrics} sleepNights={allSleep} />
       </div>
 
-      {/* Row 4: Two trend charts side by side */}
+      {/* ── TREND CHARTS ── */}
       <section>
+        <h2 className="section-header">Trenduri cheie</h2>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {metrics.restingHeartRate?.length > 0 && <TrendChart metricKey="restingHeartRate" data={metrics.restingHeartRate} />}
           {metrics.hrv?.length > 0 && <TrendChart metricKey="hrv" data={metrics.hrv} />}
         </div>
       </section>
 
-      {/* Row 5: Goals + Weekly Digest */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <GoalsTracker metrics={metrics} sleepNights={sleepNights} />
-        <WeeklyDigest metrics={metrics} sleepNights={sleepNights} />
-      </div>
+      {/* ── DIVIDER ── */}
+      <div className="divider" />
 
-      {/* Row 6: Resilience + Stability + Sleep Bank */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <ResilienceScore metrics={allMetrics} sleepNights={allSleep} />
-        <StabilityScores metrics={metrics} sleepNights={sleepNights} />
-        <SleepBank sleepNights={sleepNights} />
-      </div>
+      {/* ── DAILY PERFORMANCE ── */}
+      <section>
+        <h2 className="section-header">Performanta zilnica</h2>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <GoalsTracker metrics={metrics} sleepNights={sleepNights} />
+          <WeeklyDigest metrics={metrics} sleepNights={sleepNights} />
+        </div>
+      </section>
 
-      {/* Row 7: Behavior Journal + Monthly Recap */}
+      {/* ── DEEP ANALYSIS (collapsible sections) ── */}
+      <section>
+        <h2 className="section-header">Analiza aprofundata</h2>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <ResilienceScore metrics={allMetrics} sleepNights={allSleep} />
+          <StabilityScores metrics={metrics} sleepNights={sleepNights} />
+          <SleepBank sleepNights={sleepNights} />
+        </div>
+      </section>
+
+      {/* ── BEHAVIOR & TRENDS ── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <BehaviorJournal metrics={allMetrics} sleepNights={allSleep} />
         <MonthlyRecap metrics={allMetrics} sleepNights={allSleep} />
       </div>
 
-      {/* Row 8: What-If Simulator + Age Benchmark */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <WhatIfSimulator metrics={allMetrics} sleepNights={allSleep} />
-        <AgeBenchmark metrics={allMetrics} />
-      </div>
+      {/* ── DIVIDER ── */}
+      <div className="divider" />
 
-      {/* Row 8: Recovery Timeline */}
+      {/* ── SIMULATORS ── */}
+      <section>
+        <h2 className="section-header">Simulari & Comparatii</h2>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <WhatIfSimulator metrics={allMetrics} sleepNights={allSleep} />
+          <AgeBenchmark metrics={allMetrics} />
+        </div>
+      </section>
+
+      {/* ── TIMELINE ── */}
       <RecoveryTimeline
         rhrData={allMetrics.restingHeartRate || []}
         hrvData={allMetrics.hrv || []}
@@ -274,28 +338,32 @@ function OverviewTab({
         tempData={allMetrics.wristTemperature}
       />
 
-      {/* Row 6: Calendar Heatmap */}
-      <CalendarHeatmap metrics={metrics} />
+      {/* ── HEATMAPS ── */}
+      <section>
+        <h2 className="section-header">Vizualizari</h2>
+        <div className="space-y-4">
+          <CalendarHeatmap metrics={metrics} />
+          <CorrelationHeatmap metrics={metrics} />
+        </div>
+      </section>
 
-      {/* Row 7: Correlation Heatmap */}
-      <CorrelationHeatmap metrics={metrics} />
-
-      {/* Row 8: All insights (expandable) */}
+      {/* ── ALL INSIGHTS ── */}
+      <div className="divider" />
       {!showAllInsights ? (
         <button
           onClick={() => setShowAllInsights(true)}
-          className="w-full glass p-3 text-center text-xs text-[var(--accent)] hover:text-white cursor-pointer"
+          className="w-full glass p-4 text-center text-xs font-semibold text-[var(--accent)] hover:text-white cursor-pointer"
         >
           Vezi toate interpretarile →
         </button>
       ) : (
-        <section>
+        <section className="animate-in">
           <h2 className="section-header">Toate interpretarile</h2>
           <InsightsPanel metrics={metrics} sleepNights={sleepNights} />
         </section>
       )}
 
-      {/* Additional metric cards by category */}
+      {/* ── ADDITIONAL METRICS BY CATEGORY ── */}
       {(Object.keys(CATEGORIES) as MetricCategory[]).map((cat) => {
         const keys = metricsForCategory(cat).filter(k => !keyMetrics.includes(k));
         if (keys.length === 0) return null;
@@ -303,9 +371,9 @@ function OverviewTab({
           <section key={cat}>
             <h2 className="section-header flex items-center gap-2">
               <span>{CATEGORIES[cat].icon}</span> {CATEGORIES[cat].label}
-              <span className="text-[var(--muted)] font-normal">({keys.length})</span>
+              <span className="font-normal text-[var(--foreground-muted)]">({keys.length})</span>
             </h2>
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 stagger-in">
               {keys.map((key) => (
                 <MetricCard key={key} metricKey={key} data={metrics[key]} />
               ))}
@@ -347,7 +415,7 @@ function CategoryTab({
 
       {availableKeys.length > 0 ? (
         <>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 stagger-in">
             {availableKeys.map((key) => (
               <MetricCard key={key} metricKey={key} data={metrics[key]} />
             ))}
@@ -359,9 +427,9 @@ function CategoryTab({
           </div>
         </>
       ) : (
-        <div className="glass p-12 text-center text-[var(--muted)]">
-          <p className="text-lg mb-2">Nu sunt date disponibile</p>
-          <p className="text-sm">Aceasta categorie nu contine date in exportul tau Apple Health.</p>
+        <div className="glass p-12 text-center">
+          <p className="text-lg mb-2 text-[var(--foreground-secondary)]">Nu sunt date disponibile</p>
+          <p className="text-sm text-[var(--foreground-muted)]">Aceasta categorie nu contine date in exportul tau Apple Health.</p>
         </div>
       )}
 
@@ -373,7 +441,7 @@ function CategoryTab({
         return (
           <section>
             <h2 className="section-header">{CATEGORIES.nutrition.icon} {CATEGORIES.nutrition.label}</h2>
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 stagger-in">
               {nutritionKeys.map((key) => (
                 <MetricCard key={key} metricKey={key} data={metrics[key]} />
               ))}

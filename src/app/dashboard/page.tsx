@@ -397,159 +397,195 @@ function OverviewTab({
     return labels[datePreset] || "30 zile";
   }, [datePreset]);
 
-  const keyMetrics = ["restingHeartRate", "hrv", "oxygenSaturation", "vo2Max", "stepCount", "activeEnergy", "exerciseTime", "bodyMass"]
+  // Favorites: pinned key metrics (Apple Health "Favorites" section)
+  const favoriteMetrics = ["restingHeartRate", "hrv", "stepCount", "activeEnergy", "oxygenSaturation", "vo2Max", "exerciseTime", "bodyMass"]
     .filter(k => metrics[k]?.length > 0);
 
   return (
-    <div className="space-y-6 sm:space-y-8">
-      {/* ── HERO: Recovery Score ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-5">
-        <div className="lg:col-span-2">
-          <HeroScore
-            rhrData={allMetrics.restingHeartRate || []}
-            hrvData={allMetrics.hrv || []}
-            sleepData={allSleep}
-            exerciseData={allMetrics.exerciseTime}
-            respData={allMetrics.respiratoryRate}
-            spo2Data={allMetrics.oxygenSaturation}
-            tempData={allMetrics.wristTemperature}
-            targetDate={recoveryTargetDate}
-          />
-        </div>
-        <div className="lg:col-span-3 glass p-5 sm:p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-[17px] font-normal text-white">Ce trebuie sa stii</h3>
-            <span className="badge badge-info">{periodLabel}</span>
-          </div>
-          <InsightsPanel metrics={metrics} sleepNights={sleepNights} fullMetrics={allMetrics} fullSleep={allSleep} maxItems={4} compact />
-        </div>
-      </div>
-
-      {/* ── ONE BIG THING (always full data) ── */}
-      <OneBigThing metrics={allMetrics} sleepNights={allSleep} />
-
-      {/* ── LONG-TERM TRENDS (always full data) ── */}
-      <LongTermTrends metrics={allMetrics} />
-
-      {/* ── KEY METRICS GRID ── */}
+    <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>
+      {/* ═══ RECUPERARE (Hero) ═══ */}
       <section>
-        <h2 className="section-header">Metrici principale &middot; {periodLabel}</h2>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 stagger-in">
-          {keyMetrics.map((key) => (
+        <div className="hh-section-label">
+          <span>Recuperare azi</span>
+          <span style={{ color: "var(--label-tertiary)", textTransform: "none", letterSpacing: 0 }}>{periodLabel}</span>
+        </div>
+        <HeroScore
+          rhrData={allMetrics.restingHeartRate || []}
+          hrvData={allMetrics.hrv || []}
+          sleepData={allSleep}
+          exerciseData={allMetrics.exerciseTime}
+          respData={allMetrics.respiratoryRate}
+          spo2Data={allMetrics.oxygenSaturation}
+          tempData={allMetrics.wristTemperature}
+          targetDate={recoveryTargetDate}
+        />
+      </section>
+
+      {/* ═══ HIGHLIGHTS (top 4 insights — Apple "Highlights") ═══ */}
+      {(() => {
+        return (
+          <section>
+            <div className="hh-section-label">
+              <span>In atentie</span>
+            </div>
+            <InsightsPanel
+              metrics={metrics}
+              sleepNights={sleepNights}
+              fullMetrics={allMetrics}
+              fullSleep={allSleep}
+              maxItems={4}
+            />
+          </section>
+        );
+      })()}
+
+      {/* ═══ FAVORITES (Apple "Favorites" — pinned metric cards) ═══ */}
+      <section>
+        <div className="hh-section-label">
+          <span>Favorite</span>
+          <span style={{ color: "var(--label-tertiary)", textTransform: "none", letterSpacing: 0 }}>{periodLabel}</span>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 stagger-in">
+          {favoriteMetrics.map((key) => (
             <MetricCard key={key} metricKey={key} data={metrics[key]} />
           ))}
         </div>
       </section>
 
-      {/* ── ALERTS (only when issues detected) ── */}
+      {/* ═══ ALERTE (doar daca exista probleme detectate) ═══ */}
       <TrendAlerts metrics={metrics} sleepNights={sleepNights} />
       <RecoveryPrediction metrics={allMetrics} sleepNights={allSleep} targetDate={recoveryTargetDate} />
 
-      {/* ── DIVIDER ── */}
-      <div className="divider" />
-
-      {/* ── TRAINING & AGING ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-        <StrainCoach metrics={metrics} sleepNights={sleepNights} />
-        <BiologicalAge metrics={metrics} sleepNights={sleepNights} />
-      </div>
-
-      {/* ── TREND CHARTS ── */}
+      {/* ═══ TRENDURI CHEIE (2 grafice mari) ═══ */}
       <section>
-        <h2 className="section-header">Trenduri cheie &middot; {periodLabel}</h2>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-          {metrics.restingHeartRate?.length > 0 && <TrendChart metricKey="restingHeartRate" data={metrics.restingHeartRate} />}
-          {metrics.hrv?.length > 0 && <TrendChart metricKey="hrv" data={metrics.hrv} />}
+        <div className="hh-section-label">
+          <span>Tendinte</span>
+          <span style={{ color: "var(--label-tertiary)", textTransform: "none", letterSpacing: 0 }}>{periodLabel}</span>
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+          {metrics.restingHeartRate?.length >= 3 && <TrendChart metricKey="restingHeartRate" data={metrics.restingHeartRate} />}
+          {metrics.hrv?.length >= 3 && <TrendChart metricKey="hrv" data={metrics.hrv} />}
         </div>
       </section>
 
-      {/* ── DIVIDER ── */}
-      <div className="divider" />
-
-      {/* ── DAILY PERFORMANCE ── */}
+      {/* ═══ ANTRENAMENT & VARSTA (2 carduri side-by-side) ═══ */}
       <section>
-        <h2 className="section-header">Performanta zilnica &middot; {periodLabel}</h2>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        <div className="hh-section-label">
+          <span>Antrenament si longevitate</span>
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+          <StrainCoach metrics={metrics} sleepNights={sleepNights} />
+          <BiologicalAge metrics={metrics} sleepNights={sleepNights} />
+        </div>
+      </section>
+
+      {/* ═══ OBIECTIVE & RECAP SAPTAMANAL ═══ */}
+      <section>
+        <div className="hh-section-label">
+          <span>Performanta saptamanala</span>
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
           <GoalsTracker metrics={metrics} sleepNights={sleepNights} />
           <WeeklyDigest metrics={metrics} sleepNights={sleepNights} />
         </div>
       </section>
 
-      {/* ── DEEP ANALYSIS ── */}
+      {/* ═══ ANALIZA APROFUNDATA ═══ */}
       <section>
-        <h2 className="section-header">Analiza aprofundata &middot; {periodLabel}</h2>
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+        <div className="hh-section-label">
+          <span>Analiza aprofundata</span>
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
           <ResilienceScore metrics={metrics} sleepNights={sleepNights} />
           <StabilityScores metrics={metrics} sleepNights={sleepNights} />
           <SleepBank sleepNights={sleepNights} />
         </div>
       </section>
 
-      {/* ── BEHAVIOR & TRENDS ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-        <BehaviorJournal metrics={metrics} sleepNights={sleepNights} />
-        <MonthlyRecap metrics={metrics} sleepNights={sleepNights} />
-      </div>
-
-      {/* ── DIVIDER ── */}
-      <div className="divider" />
-
-      {/* ── SIMULATORS ── */}
+      {/* ═══ TIMELINE RECUPERARE ═══ */}
       <section>
-        <h2 className="section-header">Simulari & Comparatii</h2>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-          <WhatIfSimulator metrics={metrics} sleepNights={sleepNights} />
-          <AgeBenchmark metrics={metrics} />
+        <div className="hh-section-label">
+          <span>Istoric recuperare</span>
         </div>
+        <RecoveryTimeline
+          rhrData={metrics.restingHeartRate || []}
+          hrvData={metrics.hrv || []}
+          sleepData={sleepNights}
+          exerciseData={metrics.exerciseTime}
+          respData={metrics.respiratoryRate}
+          spo2Data={metrics.oxygenSaturation}
+          tempData={metrics.wristTemperature}
+        />
       </section>
 
-      {/* ── TIMELINE ── */}
-      <RecoveryTimeline
-        rhrData={metrics.restingHeartRate || []}
-        hrvData={metrics.hrv || []}
-        sleepData={sleepNights}
-        exerciseData={metrics.exerciseTime}
-        respData={metrics.respiratoryRate}
-        spo2Data={metrics.oxygenSaturation}
-        tempData={metrics.wristTemperature}
-      />
-
-      {/* ── HEATMAPS ── */}
+      {/* ═══ VIZUALIZARI (Calendar + Corelatii) ═══ */}
       <section>
-        <h2 className="section-header">Vizualizari</h2>
-        <div className="space-y-5">
+        <div className="hh-section-label">
+          <span>Vizualizari</span>
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           <CalendarHeatmap metrics={metrics} />
           <CorrelationHeatmap metrics={metrics} />
         </div>
       </section>
 
-      {/* ── ALL INSIGHTS ── */}
-      <div className="divider" />
+      {/* ═══ JURNAL COMPORTAMENTAL + RECAP LUNAR ═══ */}
+      <section>
+        <div className="hh-section-label">
+          <span>Comportament si istoric</span>
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+          <BehaviorJournal metrics={metrics} sleepNights={sleepNights} />
+          <MonthlyRecap metrics={metrics} sleepNights={sleepNights} />
+        </div>
+      </section>
+
+      {/* ═══ SIMULATOARE ═══ */}
+      <section>
+        <div className="hh-section-label">
+          <span>Simulari si comparatii</span>
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+          <WhatIfSimulator metrics={metrics} sleepNights={sleepNights} />
+          <AgeBenchmark metrics={metrics} />
+        </div>
+      </section>
+
+      {/* ═══ TOATE INSIGHT-URILE ═══ */}
       {!showAllInsights ? (
         <button
           onClick={() => setShowAllInsights(true)}
-          className="w-full glass p-5 text-center text-[15px] font-normal cursor-pointer"
-          style={{ color: "#007AFF" }}
+          className="hh-card hh-card-tappable"
+          style={{
+            textAlign: "center",
+            color: "var(--accent)",
+            fontSize: 15,
+            fontWeight: 600,
+            cursor: "pointer",
+            border: "none",
+            width: "100%",
+          }}
         >
-          Vezi toate interpretarile {"\u2192"}
+          Vezi toate interpretarile →
         </button>
       ) : (
         <section className="animate-in">
-          <h2 className="section-header">Toate interpretarile</h2>
+          <div className="hh-section-label"><span>Toate interpretarile</span></div>
           <InsightsPanel metrics={metrics} sleepNights={sleepNights} fullMetrics={allMetrics} fullSleep={allSleep} />
         </section>
       )}
 
-      {/* ── ADDITIONAL METRICS BY CATEGORY ── */}
+      {/* ═══ METRICI SUPLIMENTARE PE CATEGORIE ═══ */}
       {(Object.keys(CATEGORIES) as MetricCategory[]).map((cat) => {
-        const keys = metricsForCategory(cat).filter(k => !keyMetrics.includes(k));
+        const keys = metricsForCategory(cat).filter(k => !favoriteMetrics.includes(k));
         if (keys.length === 0) return null;
+        const catInfo = CATEGORIES[cat];
         return (
           <section key={cat}>
-            <h2 className="section-header flex items-center gap-2">
-              <span>{CATEGORIES[cat].icon}</span> {CATEGORIES[cat].label}
-              <span className="font-normal text-[var(--foreground-muted)]">({keys.length})</span>
-            </h2>
+            <div className="hh-section-label">
+              <span>{catInfo.icon} {catInfo.label}</span>
+              <span style={{ color: "var(--label-tertiary)", textTransform: "none", letterSpacing: 0 }}>{keys.length}</span>
+            </div>
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 stagger-in">
               {keys.map((key) => (
                 <MetricCard key={key} metricKey={key} data={metrics[key]} />

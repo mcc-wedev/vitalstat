@@ -11,30 +11,24 @@ interface InsightsPanelProps {
   filter?: string;
   maxItems?: number;
   compact?: boolean;
-  /** Optional: full (unfiltered) dataset for baseline context.
-   *  Insights need historical context (28d baselines, pattern detection)
-   *  even when the user selected "7d" for display. */
+  /** Full dataset for baseline context (insights always need historical data) */
   fullMetrics?: Record<string, DailySummary[]>;
   fullSleep?: SleepNight[];
-  /** Current selected period for scoping "recent" insights */
-  periodDays?: number;
 }
 
-const SEV: Record<InsightSeverity, { dotColor: string; textColor: string; label: string }> = {
-  alert:   { dotColor: "#FF3B30", textColor: "#FF3B30", label: "Atentie" },
-  warning: { dotColor: "#FF9500", textColor: "#FF9500", label: "Avertizare" },
-  good:    { dotColor: "#34C759", textColor: "#34C759", label: "Bine" },
-  info:    { dotColor: "#007AFF", textColor: "#007AFF", label: "Info" },
+const SEV: Record<InsightSeverity, { color: string; label: string }> = {
+  alert:   { color: "#FF3B30", label: "Atentie" },
+  warning: { color: "#FF9500", label: "Avertizare" },
+  good:    { color: "#34C759", label: "Excelent" },
+  info:    { color: "#007AFF", label: "Info" },
 };
 
 const SEV_ORDER: InsightSeverity[] = ["alert", "warning", "info", "good"];
 
 export function InsightsPanel({ metrics, sleepNights, filter, maxItems, compact, fullMetrics, fullSleep }: InsightsPanelProps) {
   const insights = useMemo(() => {
-    // CRITICAL: Always pass full dataset to insights engine.
-    // Slicing (e.g., slice(-14,-7) for weekly comparison) would break
-    // on short periods (7d, 14d). Period selector only affects display,
-    // not analysis.
+    // CRITICAL: always pass full dataset to insights engine.
+    // Slicing (slice(-14,-7) etc) breaks on short periods.
     const sourceMetrics = fullMetrics || metrics;
     const sourceSleep = fullSleep || sleepNights;
     let all = generateInsights(sourceMetrics, sourceSleep);
@@ -47,20 +41,27 @@ export function InsightsPanel({ metrics, sleepNights, filter, maxItems, compact,
   if (insights.length === 0) return null;
 
   if (compact) {
+    // Compact mode: list of insights with bullets (for sidebar / overview)
     return (
-      <div className="space-y-3">
+      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
         {insights.map((insight) => {
           const s = SEV[insight.severity];
           return (
-            <div key={insight.id} className="flex items-start gap-3">
-              <div className="mt-1.5 shrink-0">
-                <div className="w-2 h-2 rounded-full" style={{ background: s.dotColor }} />
-              </div>
+            <div key={insight.id} className="flex items-start gap-2.5">
+              <span
+                className="shrink-0 rounded-full"
+                style={{ background: s.color, width: 6, height: 6, marginTop: 7 }}
+              />
               <div className="min-w-0 flex-1">
-                <h4 className="font-semibold text-[13px]" style={{ color: s.textColor }}>{insight.title}</h4>
-                <p className="text-[13px] mt-0.5 leading-relaxed line-clamp-2" style={{ color: "rgba(235,235,245,0.6)" }}>
+                <div className="hh-headline" style={{ color: "var(--label-primary)", fontSize: 14, lineHeight: 1.3 }}>
+                  {insight.title}
+                </div>
+                <div
+                  className="hh-footnote line-clamp-2"
+                  style={{ color: "var(--label-secondary)", marginTop: 2, lineHeight: 1.35 }}
+                >
                   {insight.body}
-                </p>
+                </div>
               </div>
             </div>
           );
@@ -69,40 +70,61 @@ export function InsightsPanel({ metrics, sleepNights, filter, maxItems, compact,
     );
   }
 
+  // Full cards — Apple "Highlights" style
   return (
-    <div className="space-y-3">
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
       {insights.map((insight, i) => (
-        <InsightCard key={insight.id} insight={insight} style={{ animationDelay: `${i * 50}ms` }} />
+        <InsightCard key={insight.id} insight={insight} delay={i * 40} />
       ))}
     </div>
   );
 }
 
-function InsightCard({ insight, style }: { insight: Insight; style?: React.CSSProperties }) {
+function InsightCard({ insight, delay }: { insight: Insight; delay: number }) {
   const s = SEV[insight.severity];
 
   return (
     <div
-      className="insight-card animate-in"
-      style={style}
+      className="hh-card animate-in"
+      style={{
+        animationDelay: `${delay}ms`,
+        borderLeft: `3px solid ${s.color}`,
+        paddingLeft: 16,
+      }}
     >
-      <div className="flex items-start gap-3">
-        {/* Severity dot */}
-        <div className="mt-1.5 shrink-0">
-          <div className="w-2.5 h-2.5 rounded-full" style={{ background: s.dotColor }} />
-        </div>
-        <div className="flex-1 min-w-0">
-          <h4 className="font-semibold text-[15px] text-white mb-1">
-            {insight.title}
-          </h4>
-          <p
-            className="text-[15px] whitespace-pre-line leading-relaxed"
-            style={{ color: "rgba(235,235,245,0.6)" }}
-          >
-            {insight.body}
-          </p>
-        </div>
+      <div className="flex items-center justify-between" style={{ marginBottom: 6 }}>
+        <span
+          className="hh-caption-2"
+          style={{
+            color: s.color,
+            textTransform: "uppercase",
+            letterSpacing: "0.05em",
+            fontWeight: 700,
+          }}
+        >
+          {s.label}
+        </span>
       </div>
+      <h4
+        className="hh-headline"
+        style={{
+          color: "var(--label-primary)",
+          marginBottom: 4,
+          fontSize: 15,
+        }}
+      >
+        {insight.title}
+      </h4>
+      <p
+        className="hh-subheadline"
+        style={{
+          color: "var(--label-secondary)",
+          whiteSpace: "pre-line",
+          lineHeight: 1.4,
+        }}
+      >
+        {insight.body}
+      </p>
     </div>
   );
 }

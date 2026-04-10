@@ -11,49 +11,45 @@ interface MetricCardProps {
   onClick?: () => void;
 }
 
+/**
+ * Apple Health–style metric card.
+ *
+ * Layout:
+ *   ┌─────────────────────────────────┐
+ *   │ ● CATEGORY LABEL         Today  │  ← footnote, colored dot
+ *   │                                 │
+ *   │ 72 bpm             ↓ 3%         │  ← title-1 number + unit
+ *   │                                 │
+ *   │ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~  │  ← sparkline (area)
+ *   └─────────────────────────────────┘
+ */
 export function MetricCard({ metricKey, data, onClick }: MetricCardProps) {
   const config = METRIC_CONFIG[metricKey];
 
-  const { latest, trend, trendPct, sparkData, trendLabel, avg } = useMemo(() => {
+  const { latest, trend, trendPct, sparkData } = useMemo(() => {
     if (!data || data.length === 0)
-      return { latest: null, trend: "stable" as const, trendPct: 0, sparkData: [], trendLabel: "", avg: null };
+      return { latest: null, trend: "stable" as const, trendPct: 0, sparkData: [] };
 
     const latestVal = getDisplayValue(data[data.length - 1], metricKey);
 
-    const n = data.length;
+    // Trend: last 7 days vs previous 7 days (only when enough data)
+    const last7 = data.slice(-7);
+    const prev7 = data.slice(-14, -7);
     let trend: "up" | "down" | "stable" = "stable";
     let trendPct = 0;
-    let trendLabel = "";
-    let avg: number | null = null;
 
-    if (n >= 4) {
-      const halfLen = Math.min(Math.floor(n / 2), 14);
-      const recentHalf = data.slice(-halfLen);
-      const prevHalf = data.slice(-(halfLen * 2), -halfLen);
-
-      if (recentHalf.length >= 2 && prevHalf.length >= 2) {
-        const avgRecent = recentHalf.reduce((s, d) => s + getDisplayValue(d, metricKey), 0) / recentHalf.length;
-        const avgPrev = prevHalf.reduce((s, d) => s + getDisplayValue(d, metricKey), 0) / prevHalf.length;
-        if (avgPrev > 0) {
-          trendPct = ((avgRecent - avgPrev) / avgPrev) * 100;
-          if (Math.abs(trendPct) > 2) trend = trendPct > 0 ? "up" : "down";
-        }
-        trendLabel = `vs ${halfLen}z ant.`;
+    if (last7.length >= 3 && prev7.length >= 3) {
+      const avgLast = last7.reduce((s, d) => s + getDisplayValue(d, metricKey), 0) / last7.length;
+      const avgPrev = prev7.reduce((s, d) => s + getDisplayValue(d, metricKey), 0) / prev7.length;
+      if (avgPrev > 0) {
+        trendPct = ((avgLast - avgPrev) / avgPrev) * 100;
+        if (Math.abs(trendPct) > 2) trend = trendPct > 0 ? "up" : "down";
       }
-    } else if (n === 1) {
-      trendLabel = "azi";
-    } else {
-      trendLabel = `${n}z`;
     }
 
-    // Calculate rolling average for last 28 days (or all data if less)
-    const avgWindow = data.slice(-28);
-    if (avgWindow.length >= 3) {
-      avg = avgWindow.reduce((s, d) => s + getDisplayValue(d, metricKey), 0) / avgWindow.length;
-    }
-
-    const sparkData = data.map(d => ({ v: getDisplayValue(d, metricKey) }));
-    return { latest: latestVal, trend, trendPct, sparkData, trendLabel, avg };
+    // Sparkline: up to last 30 points
+    const sparkData = data.slice(-30).map(d => ({ v: getDisplayValue(d, metricKey) }));
+    return { latest: latestVal, trend, trendPct, sparkData };
   }, [data, metricKey]);
 
   if (!config || latest === null) return null;
@@ -63,77 +59,84 @@ export function MetricCard({ metricKey, data, onClick }: MetricCardProps) {
     (trend === "up" && config.higherIsBetter) ||
     (trend === "down" && !config.higherIsBetter);
 
+  const trendColor = trend === "stable"
+    ? "var(--label-tertiary)"
+    : trendIsGood
+      ? "var(--success)"
+      : "var(--danger)";
+
+  const gradId = `spark-${metricKey}`;
+
   return (
     <div
       onClick={onClick}
-      className="metric-card"
+      className="hh-card hh-card-tappable animate-in"
+      style={{ cursor: onClick ? "pointer" : "default" }}
     >
-      {/* Category color dot + label */}
-      <div className="flex items-center gap-2 mb-3">
-        <div
-          className="w-2 h-2 rounded-full shrink-0"
-          style={{ background: config.color }}
-        />
-        <span
-          className="text-[13px] font-normal leading-tight"
-          style={{ color: "rgba(235,235,245,0.6)" }}
-        >
-          {config.label}
-        </span>
+      {/* Top row: category label with colored dot */}
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-1.5 min-w-0">
+          <span
+            className="w-1.5 h-1.5 rounded-full shrink-0"
+            style={{ background: config.color }}
+          />
+          <span
+            className="hh-caption truncate"
+            style={{ color: "var(--label-secondary)", fontWeight: 500 }}
+          >
+            {config.label}
+          </span>
+        </div>
+        {trend !== "stable" && (
+          <span
+            className="hh-caption-2 hh-mono-num shrink-0 ml-2"
+            style={{ color: trendColor }}
+          >
+            {trend === "up" ? "↑" : "↓"} {Math.abs(trendPct).toFixed(0)}%
+          </span>
+        )}
       </div>
 
-      {/* Large bold value */}
-      <div className="flex items-baseline gap-1.5 mb-1">
-        <span className="text-[28px] font-bold tabular-nums leading-none">
-          {latest.toFixed(config.decimals)}
+      {/* Main value */}
+      <div className="flex items-baseline gap-1 mb-3">
+        <span
+          className="hh-mono-num"
+          style={{
+            fontSize: "28px",
+            fontWeight: 700,
+            color: "var(--label-primary)",
+            lineHeight: 1,
+          }}
+        >
+          {formatValue(latest, config.decimals)}
         </span>
         {config.unit && (
           <span
-            className="text-[15px] font-normal"
-            style={{ color: "rgba(235,235,245,0.6)" }}
+            className="hh-footnote"
+            style={{ color: "var(--label-secondary)", fontWeight: 500 }}
           >
             {config.unit}
           </span>
         )}
       </div>
 
-      {/* Average + trend as footnote */}
-      <div className="flex items-center gap-2 mb-3">
-        {avg !== null && (
-          <span
-            className="text-[13px]"
-            style={{ color: "rgba(235,235,245,0.3)" }}
-          >
-            medie 28z: {avg.toFixed(config.decimals)}
-          </span>
-        )}
-        {trend !== "stable" && (
-          <span
-            className="text-[13px] tabular-nums"
-            style={{ color: trendIsGood ? "#34C759" : "#FF3B30" }}
-          >
-            {trend === "up" ? "+" : ""}{trendPct.toFixed(0)}%
-          </span>
-        )}
-      </div>
-
-      {/* Sparkline with category color */}
+      {/* Sparkline */}
       {sparkData.length > 3 && (
-        <div className="h-10 w-full">
+        <div className="hh-chart" style={{ height: 32 }}>
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={sparkData} margin={{ top: 2, right: 0, bottom: 0, left: 0 }}>
               <defs>
-                <linearGradient id={`grad-${metricKey}`} x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor={config.color} stopOpacity={0.2} />
-                  <stop offset="100%" stopColor={config.color} stopOpacity={0.0} />
+                <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor={config.color} stopOpacity={0.3} />
+                  <stop offset="100%" stopColor={config.color} stopOpacity={0} />
                 </linearGradient>
               </defs>
               <Area
                 type="monotone"
                 dataKey="v"
                 stroke={config.color}
-                strokeWidth={2}
-                fill={`url(#grad-${metricKey})`}
+                strokeWidth={1.8}
+                fill={`url(#${gradId})`}
                 dot={false}
                 isAnimationActive={false}
               />
@@ -143,4 +146,14 @@ export function MetricCard({ metricKey, data, onClick }: MetricCardProps) {
       )}
     </div>
   );
+}
+
+function formatValue(val: number, decimals: number): string {
+  if (Math.abs(val) >= 10000) {
+    return val.toLocaleString("ro-RO", { maximumFractionDigits: 0 });
+  }
+  return val.toLocaleString("ro-RO", {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  });
 }

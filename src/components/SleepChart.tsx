@@ -78,70 +78,88 @@ export function SleepChart({ data, days = 30 }: SleepChartProps) {
   }
 
   return (
-    <div className="space-y-4">
-      {/* Stats row */}
+    <div className="space-y-3 animate-in">
+      {/* Summary stats — Apple Health summary card */}
       {stats && (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
-          {[
-            { label: "Durata medie", value: `${stats.avgDuration}h`, good: Number(stats.avgDuration) >= 7 },
-            { label: "Eficienta", value: `${stats.avgEfficiency}%`, good: Number(stats.avgEfficiency) >= 85 },
-            { label: "Somn profund", value: `${stats.deepPct}%`, good: Number(stats.deepPct) >= 15 },
-            { label: "Regularitate", value: `\u00b1${stats.regularity}h`, good: Number(stats.regularity) < 1 },
-            { label: "Jet lag social", value: `${stats.socialJetLag}h`, good: Number(stats.socialJetLag) < 1 },
-          ].map((s) => (
-            <div key={s.label} className="glass p-3 text-center">
-              <p className="text-[11px] mb-1" style={{ color: "rgba(235,235,245,0.3)" }}>{s.label}</p>
-              <p className="text-[22px] font-bold" style={{ color: s.good ? "#34C759" : "#FF9500" }}>
-                {s.value}
-              </p>
-            </div>
-          ))}
+        <div className="hh-card">
+          <div className="flex items-center gap-2" style={{ marginBottom: 12 }}>
+            <span className="w-2 h-2 rounded-full shrink-0" style={{ background: "#AF52DE" }} />
+            <span className="hh-caption" style={{
+              color: "var(--label-secondary)",
+              textTransform: "uppercase",
+              letterSpacing: "0.045em",
+              fontWeight: 500,
+            }}>
+              Rezumat somn · ultimele {chartData.length} nopti
+            </span>
+          </div>
+          <div className="grid grid-cols-3 sm:grid-cols-5 gap-3">
+            {[
+              { label: "Durata", value: `${stats.avgDuration}h`, good: Number(stats.avgDuration) >= 7 },
+              { label: "Eficienta", value: `${stats.avgEfficiency}%`, good: Number(stats.avgEfficiency) >= 85 },
+              { label: "Profund", value: `${stats.deepPct}%`, good: Number(stats.deepPct) >= 15 },
+              { label: "Regularitate", value: `\u00b1${stats.regularity}h`, good: Number(stats.regularity) < 1 },
+              { label: "Jet lag", value: `${stats.socialJetLag}h`, good: Number(stats.socialJetLag) < 1 },
+            ].map((s) => (
+              <div key={s.label}>
+                <p className="hh-caption-2" style={{ color: "var(--label-tertiary)", marginBottom: 2, textTransform: "uppercase", letterSpacing: "0.03em" }}>
+                  {s.label}
+                </p>
+                <p className="hh-mono-num" style={{
+                  fontSize: 20,
+                  fontWeight: 700,
+                  color: s.good ? "var(--success)" : "var(--warning)",
+                  lineHeight: 1.1,
+                }}>
+                  {s.value}
+                </p>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
-      {/* Stacked bar chart — purple theme */}
-      <div className="glass p-4 sm:p-5">
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full" style={{ background: "#AF52DE" }} />
-            <h3 className="text-[17px] font-normal text-white">
+      {/* Stacked bar chart */}
+      <div className="hh-card">
+        <div className="flex items-center justify-between" style={{ marginBottom: 12 }}>
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="w-2 h-2 rounded-full shrink-0" style={{ background: "#AF52DE" }} />
+            <span className="hh-headline truncate" style={{ color: "var(--label-primary)" }}>
               Stadii somn
-            </h3>
-            <span className="text-[13px]" style={{ color: "rgba(235,235,245,0.3)" }}>
-              ultimele {chartData.length}z
             </span>
           </div>
-          <div className="flex gap-2 sm:gap-3 text-[11px]" style={{ color: "rgba(235,235,245,0.3)" }}>
-            <span className="flex items-center gap-1"><span className="w-2.5 h-2 rounded inline-block" style={{ background: "#5E35B1" }} /> Profund</span>
-            <span className="flex items-center gap-1"><span className="w-2.5 h-2 rounded inline-block" style={{ background: "#AF52DE" }} /> Usor</span>
-            <span className="flex items-center gap-1"><span className="w-2.5 h-2 rounded inline-block" style={{ background: "#CE93D8" }} /> REM</span>
-            <span className="hidden sm:flex items-center gap-1"><span className="w-2.5 h-2 rounded inline-block" style={{ background: "#FF3B30", opacity: 0.5 }} /> Treaz</span>
+          <div className="flex gap-2 sm:gap-3 shrink-0">
+            <LegendDot color="#5E35B1" label="Profund" />
+            <LegendDot color="#AF52DE" label="Usor" />
+            <LegendDot color="#CE93D8" label="REM" />
           </div>
         </div>
 
-        <div className="h-52 sm:h-64 w-full">
+        <div className="hh-chart" style={{ height: 200 }}>
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={chartData} margin={{ top: 5, right: 8, bottom: 5, left: 0 }}>
               <XAxis
                 dataKey="date"
-                tick={{ fill: "rgba(235,235,245,0.3)", fontSize: 11 }}
+                tick={{ fill: "rgba(235,235,245,0.35)", fontSize: 11, fontWeight: 500 }}
                 tickLine={false}
                 axisLine={false}
                 interval="preserveStartEnd"
-                minTickGap={35}
+                minTickGap={40}
               />
               <YAxis
-                tick={{ fill: "rgba(235,235,245,0.3)", fontSize: 11 }}
+                tick={{ fill: "rgba(235,235,245,0.35)", fontSize: 11, fontWeight: 500 }}
                 tickLine={false}
                 axisLine={false}
-                width={32}
+                width={30}
               />
               <Tooltip
                 contentStyle={{
-                  background: "#1C1C1E",
-                  border: "none",
-                  borderRadius: "12px",
-                  fontSize: "13px",
+                  background: "rgba(30,30,32,0.95)",
+                  backdropFilter: "blur(20px)",
+                  border: "0.5px solid rgba(84,84,88,0.35)",
+                  borderRadius: 10,
+                  fontSize: 12,
+                  padding: "8px 12px",
                   boxShadow: "0 8px 32px rgba(0,0,0,0.5)",
                 }}
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -155,11 +173,20 @@ export function SleepChart({ data, days = 30 }: SleepChartProps) {
               <Bar dataKey="deep" stackId="sleep" fill="#5E35B1" radius={[0, 0, 0, 0]} isAnimationActive={false} />
               <Bar dataKey="core" stackId="sleep" fill="#AF52DE" isAnimationActive={false} />
               <Bar dataKey="rem" stackId="sleep" fill="#CE93D8" isAnimationActive={false} />
-              <Bar dataKey="awake" stackId="sleep" fill="#FF3B30" fillOpacity={0.4} radius={[2, 2, 0, 0]} isAnimationActive={false} />
+              <Bar dataKey="awake" stackId="sleep" fill="#FF3B30" fillOpacity={0.4} radius={[3, 3, 0, 0]} isAnimationActive={false} />
             </BarChart>
           </ResponsiveContainer>
         </div>
       </div>
     </div>
+  );
+}
+
+function LegendDot({ color, label }: { color: string; label: string }) {
+  return (
+    <span className="hh-caption-2 flex items-center gap-1" style={{ color: "var(--label-tertiary)" }}>
+      <span className="inline-block w-2 h-2 rounded-full" style={{ background: color }} />
+      {label}
+    </span>
   );
 }

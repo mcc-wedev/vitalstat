@@ -401,12 +401,21 @@ function OverviewTab({
   const favoriteMetrics = ["restingHeartRate", "hrv", "stepCount", "activeEnergy", "oxygenSaturation", "vo2Max", "exerciseTime", "bodyMass"]
     .filter(k => metrics[k]?.length > 0);
 
+  // Dates in the selected period — used to compute period-average recovery
+  const periodDates = useMemo(() => {
+    const dates = new Set<string>();
+    for (const arr of Object.values(metrics)) {
+      for (const d of arr) dates.add(d.date);
+    }
+    return [...dates].sort();
+  }, [metrics]);
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>
       {/* ═══ RECUPERARE (Hero) ═══ */}
       <section>
         <div className="hh-section-label">
-          <span>Recuperare azi</span>
+          <span>Recuperare</span>
           <span style={{ color: "var(--label-tertiary)", textTransform: "none", letterSpacing: 0 }}>{periodLabel}</span>
         </div>
         <HeroScore
@@ -417,7 +426,8 @@ function OverviewTab({
           respData={allMetrics.respiratoryRate}
           spo2Data={allMetrics.oxygenSaturation}
           tempData={allMetrics.wristTemperature}
-          targetDate={recoveryTargetDate}
+          periodDates={periodDates}
+          periodLabel={periodLabel}
         />
       </section>
 

@@ -200,10 +200,35 @@ export const CATEGORIES: Record<MetricCategory, { label: string; icon: string; c
 };
 
 /**
+ * Unit conversions applied AT DISPLAY TIME.
+ * Raw data stays in HealthKit's native units in IndexedDB (source of truth).
+ */
+const UNIT_CONVERTERS: Record<string, (v: number) => number> = {
+  // Apple stores walking/running distance in km already? Actually in meters per iOS 17+
+  // But XML export uses "unit" attribute — we don't capture it. Safest: don't convert,
+  // Apple Health export shows distance as km in ro-RO setting.
+  // walkingSpeed: m/s → km/h (multiply by 3.6)
+  walkingSpeed: (v) => v * 3.6,
+  // stairSpeedUp / stairSpeedDown: already in m/s, keep
+  // oxygenSaturation: Apple stores as 0.0–1.0 fraction. Display as %.
+  oxygenSaturation: (v) => (v <= 1 ? v * 100 : v),
+  // stepLength: m → cm
+  stepLength: (v) => v * 100,
+  // doubleSupportPct / walkingAsymmetry: stored as 0.0–1.0 fraction
+  doubleSupportPct: (v) => (v <= 1 ? v * 100 : v),
+  walkingAsymmetry: (v) => (v <= 1 ? v * 100 : v),
+  // bodyFat: 0.0–1.0 fraction
+  bodyFat: (v) => (v <= 1 ? v * 100 : v),
+};
+
+/**
  * Get the display value for a daily summary respecting aggregation type
+ * and applying any unit conversions.
  */
 export function getDisplayValue(summary: DailySummary, metricKey: string): number {
   const config = METRIC_CONFIG[metricKey];
   if (!config) return summary.mean;
-  return config.aggregation === "sum" ? summary.sum : summary.mean;
+  const raw = config.aggregation === "sum" ? summary.sum : summary.mean;
+  const converter = UNIT_CONVERTERS[metricKey];
+  return converter ? converter(raw) : raw;
 }

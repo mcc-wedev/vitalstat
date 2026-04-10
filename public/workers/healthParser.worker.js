@@ -56,9 +56,8 @@ const TYPE_TO_KEY = {
   HKQuantityTypeIdentifierDietarySodium: "dietarySodium",
   HKQuantityTypeIdentifierDietaryCaffeine: "dietaryCaffeine",
   HKQuantityTypeIdentifierDietaryWater: "dietaryWater",
-  // Audio
+  // Audio — keep noiseExposure name for healthTypes.ts compatibility
   HKQuantityTypeIdentifierEnvironmentalAudioExposure: "noiseExposure",
-  HKQuantityTypeIdentifierEnvironmentalSoundReduction: "noiseExposure",
   HKQuantityTypeIdentifierHeadphoneAudioExposure: "headphoneAudio",
   // Other
   HKQuantityTypeIdentifierHandwashingDuration: "handwashingDuration",

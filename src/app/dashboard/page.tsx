@@ -66,11 +66,16 @@ export default function Dashboard() {
   const filteredSleep = useMemo(() => filterSleepByDate(sleepNights, bounds), [sleepNights, bounds]);
 
   const isDailyView = datePreset === "today" || datePreset === "yesterday";
+  // "Today" = last day with data, "Yesterday" = day before that
+  // (Apple Health export is historical, not real-time — the user's "today"
+  //  is the most recent day they have data for.)
   const dailyDate = useMemo(() => {
-    if (datePreset === "today") return new Date().toISOString().substring(0, 10);
-    if (datePreset === "yesterday") return new Date(Date.now() - 86400000).toISOString().substring(0, 10);
+    if (!meta) return null;
+    const end = new Date(meta.dateRange.end + "T00:00:00Z");
+    if (datePreset === "today") return meta.dateRange.end;
+    if (datePreset === "yesterday") return new Date(end.getTime() - 86400000).toISOString().substring(0, 10);
     return null;
-  }, [datePreset]);
+  }, [datePreset, meta]);
 
   if (!hasData || !meta) return null;
 
@@ -117,21 +122,26 @@ export default function Dashboard() {
               </p>
             </div>
             <div className="flex items-center gap-1">
-              {/* Force Refresh Button */}
+              {/* Force Refresh — unregisters SW, clears all caches, reloads */}
               <button
                 onClick={async () => {
                   try {
-                    const reg = await navigator.serviceWorker?.getRegistration();
-                    if (reg) await reg.update();
+                    // 1. Unregister ALL service workers (not just update)
+                    const regs = await navigator.serviceWorker?.getRegistrations();
+                    if (regs) await Promise.all(regs.map(r => r.unregister()));
                   } catch {}
                   try {
-                    const keys = await caches.keys();
-                    await Promise.all(keys.map(k => caches.delete(k)));
+                    // 2. Delete all caches
+                    if (typeof caches !== "undefined") {
+                      const keys = await caches.keys();
+                      await Promise.all(keys.map(k => caches.delete(k)));
+                    }
                   } catch {}
-                  window.location.reload();
+                  // 3. Hard reload (bypass HTTP cache too)
+                  window.location.href = window.location.pathname + "?t=" + Date.now();
                 }}
                 className="pill text-[13px] flex items-center gap-1.5"
-                title="Actualizeaza"
+                title="Forteaza actualizare — sterge cache si reincarca"
               >
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2" />
@@ -188,13 +198,15 @@ export default function Dashboard() {
             <OverviewTab metrics={filteredMetrics} sleepNights={filteredSleep} allMetrics={metrics} allSleep={sleepNights} metricsForCategory={metricsForCategory} datePreset={datePreset} />
           )}
           {activeTab === "sleep" && (
-            <SleepTab metrics={filteredMetrics} sleepNights={filteredSleep} allSleep={sleepNights} />
+            <SleepTab metrics={filteredMetrics} sleepNights={filteredSleep} allMetrics={metrics} allSleep={sleepNights} />
           )}
           {activeTab !== "overview" && activeTab !== "sleep" && (
             <CategoryTab
               category={activeTab}
               metrics={filteredMetrics}
               sleepNights={filteredSleep}
+              allMetrics={metrics}
+              allSleep={sleepNights}
               availableKeys={metricsForCategory(activeTab)}
             />
           )}
@@ -236,8 +248,9 @@ export default function Dashboard() {
 //  OVERVIEW TAB — Restructured
 // ═══════════════════════════════════════
 function OneBigThing({ metrics, sleepNights }: { metrics: Record<string, DailySummary[]>; sleepNights: SleepNight[] }) {
+  // Always uses full dataset — period selector doesn't apply here.
+  // "Cel mai important lucru" is always about recent trends vs baseline.
   const insight = useMemo(() => {
-    // Find the most impactful metric change
     const checks = [
       { key: "hrv", label: "HRV", higherBetter: true },
       { key: "restingHeartRate", label: "Pulsul de repaus", higherBetter: false },
@@ -248,10 +261,10 @@ function OneBigThing({ metrics, sleepNights }: { metrics: Record<string, DailySu
 
     for (const { key, label, higherBetter } of checks) {
       const d = metrics[key];
-      if (!d || d.length < 7) continue;
+      if (!d || d.length < 14) continue; // need at least 14 days
       const last7 = d.slice(-7);
       const prev7 = d.slice(-14, -7);
-      if (prev7.length < 3) continue;
+      if (prev7.length < 3 || last7.length < 3) continue;
       const avgLast = last7.reduce((s, x) => s + (x.mean || 0), 0) / last7.length;
       const avgPrev = prev7.reduce((s, x) => s + (x.mean || 0), 0) / prev7.length;
       if (avgPrev === 0) continue;
@@ -364,15 +377,16 @@ function OverviewTab({
 }) {
   const [showAllInsights, setShowAllInsights] = useState(false);
 
-  // Compute target date for recovery based on selected period
+  // Recovery target date: always the last day of the selected period.
+  // For "today"/"yesterday" this is handled at parent level (daily view).
+  // For other periods, we use the last date in the filtered dataset.
   const recoveryTargetDate = useMemo(() => {
-    const today = new Date().toISOString().substring(0, 10);
-    const yesterday = new Date(Date.now() - 86400000).toISOString().substring(0, 10);
-    if (datePreset === "today") return today;
-    if (datePreset === "yesterday") return yesterday;
-    const allDates = Object.values(metrics).flatMap(arr => arr.map(d => d.date));
-    return allDates.sort().pop() || today;
-  }, [datePreset, metrics]);
+    // Try filtered first (respects period), fall back to full data
+    const filteredDates = Object.values(metrics).flatMap(arr => arr.map(d => d.date));
+    if (filteredDates.length > 0) return filteredDates.sort().pop()!;
+    const allDates = Object.values(allMetrics).flatMap(arr => arr.map(d => d.date));
+    return allDates.sort().pop() || new Date().toISOString().substring(0, 10);
+  }, [metrics, allMetrics]);
 
   // Period label for display
   const periodLabel = useMemo(() => {
@@ -407,15 +421,15 @@ function OverviewTab({
             <h3 className="text-[17px] font-normal text-white">Ce trebuie sa stii</h3>
             <span className="badge badge-info">{periodLabel}</span>
           </div>
-          <InsightsPanel metrics={metrics} sleepNights={sleepNights} maxItems={4} compact />
+          <InsightsPanel metrics={metrics} sleepNights={sleepNights} fullMetrics={allMetrics} fullSleep={allSleep} maxItems={4} compact />
         </div>
       </div>
 
-      {/* ── ONE BIG THING ── */}
-      <OneBigThing metrics={metrics} sleepNights={sleepNights} />
+      {/* ── ONE BIG THING (always full data) ── */}
+      <OneBigThing metrics={allMetrics} sleepNights={allSleep} />
 
-      {/* ── LONG-TERM TRENDS ── */}
-      <LongTermTrends metrics={metrics} />
+      {/* ── LONG-TERM TRENDS (always full data) ── */}
+      <LongTermTrends metrics={allMetrics} />
 
       {/* ── KEY METRICS GRID ── */}
       <section>
@@ -522,7 +536,7 @@ function OverviewTab({
       ) : (
         <section className="animate-in">
           <h2 className="section-header">Toate interpretarile</h2>
-          <InsightsPanel metrics={metrics} sleepNights={sleepNights} />
+          <InsightsPanel metrics={metrics} sleepNights={sleepNights} fullMetrics={allMetrics} fullSleep={allSleep} />
         </section>
       )}
 
@@ -549,7 +563,7 @@ function OverviewTab({
 }
 
 // ═══ SLEEP TAB ═══
-function SleepTab({ metrics, sleepNights, allSleep }: { metrics: Record<string, DailySummary[]>; sleepNights: SleepNight[]; allSleep: SleepNight[] }) {
+function SleepTab({ metrics, sleepNights, allMetrics, allSleep }: { metrics: Record<string, DailySummary[]>; sleepNights: SleepNight[]; allMetrics: Record<string, DailySummary[]>; allSleep: SleepNight[] }) {
   return (
     <div className="space-y-6">
       <h2 className="section-header flex items-center gap-2">
@@ -560,8 +574,8 @@ function SleepTab({ metrics, sleepNights, allSleep }: { metrics: Record<string, 
       {/* Sleep chart first — most visual */}
       <SleepChart data={sleepNights} days={sleepNights.length} />
 
-      {/* Insights */}
-      <InsightsPanel metrics={metrics} sleepNights={sleepNights} filter="sleep" />
+      {/* Insights — uses full dataset for proper analysis */}
+      <InsightsPanel metrics={metrics} sleepNights={sleepNights} fullMetrics={allMetrics} fullSleep={allSleep} filter="sleep" />
 
       {/* Smart tips + circadian */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -592,11 +606,13 @@ function SleepTab({ metrics, sleepNights, allSleep }: { metrics: Record<string, 
 
 // ═══ GENERIC CATEGORY TAB ═══
 function CategoryTab({
-  category, metrics, sleepNights, availableKeys,
+  category, metrics, sleepNights, allMetrics, allSleep, availableKeys,
 }: {
   category: MetricCategory;
   metrics: Record<string, DailySummary[]>;
   sleepNights: SleepNight[];
+  allMetrics: Record<string, DailySummary[]>;
+  allSleep: SleepNight[];
   availableKeys: string[];
 }) {
   const catInfo = CATEGORIES[category];
@@ -619,9 +635,9 @@ function CategoryTab({
         <span className="text-[15px] font-normal" style={{ color: "rgba(235,235,245,0.3)" }}>({availableKeys.length} metrici)</span>
       </h2>
 
-      {/* Insights for this category */}
-      <InsightsPanel metrics={metrics} sleepNights={sleepNights} filter={category === "body" ? undefined : category} />
-      {category === "body" && <InsightsPanel metrics={metrics} sleepNights={sleepNights} filter="nutrition" />}
+      {/* Insights for this category — uses full dataset */}
+      <InsightsPanel metrics={metrics} sleepNights={sleepNights} fullMetrics={allMetrics} fullSleep={allSleep} filter={category === "body" ? undefined : category} />
+      {category === "body" && <InsightsPanel metrics={metrics} sleepNights={sleepNights} fullMetrics={allMetrics} fullSleep={allSleep} filter="nutrition" />}
 
       {/* Metrics grid */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 stagger-in">

@@ -11,6 +11,13 @@ interface InsightsPanelProps {
   filter?: string;
   maxItems?: number;
   compact?: boolean;
+  /** Optional: full (unfiltered) dataset for baseline context.
+   *  Insights need historical context (28d baselines, pattern detection)
+   *  even when the user selected "7d" for display. */
+  fullMetrics?: Record<string, DailySummary[]>;
+  fullSleep?: SleepNight[];
+  /** Current selected period for scoping "recent" insights */
+  periodDays?: number;
 }
 
 const SEV: Record<InsightSeverity, { dotColor: string; textColor: string; label: string }> = {
@@ -22,14 +29,20 @@ const SEV: Record<InsightSeverity, { dotColor: string; textColor: string; label:
 
 const SEV_ORDER: InsightSeverity[] = ["alert", "warning", "info", "good"];
 
-export function InsightsPanel({ metrics, sleepNights, filter, maxItems, compact }: InsightsPanelProps) {
+export function InsightsPanel({ metrics, sleepNights, filter, maxItems, compact, fullMetrics, fullSleep }: InsightsPanelProps) {
   const insights = useMemo(() => {
-    let all = generateInsights(metrics, sleepNights);
+    // CRITICAL: Always pass full dataset to insights engine.
+    // Slicing (e.g., slice(-14,-7) for weekly comparison) would break
+    // on short periods (7d, 14d). Period selector only affects display,
+    // not analysis.
+    const sourceMetrics = fullMetrics || metrics;
+    const sourceSleep = fullSleep || sleepNights;
+    let all = generateInsights(sourceMetrics, sourceSleep);
     if (filter) all = all.filter(i => i.category === filter || i.metric === filter);
     all.sort((a, b) => SEV_ORDER.indexOf(a.severity) - SEV_ORDER.indexOf(b.severity));
     if (maxItems) all = all.slice(0, maxItems);
     return all;
-  }, [metrics, sleepNights, filter, maxItems]);
+  }, [metrics, sleepNights, filter, maxItems, fullMetrics, fullSleep]);
 
   if (insights.length === 0) return null;
 

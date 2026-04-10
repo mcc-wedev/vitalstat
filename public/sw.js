@@ -1,10 +1,10 @@
 // ═══════════════════════════════════════════════════════════
-// VITALSTAT SERVICE WORKER v6
+// VITALSTAT SERVICE WORKER v7
 // Strategy: Network-first for EVERYTHING except hashed assets
 // This ensures users ALWAYS get the latest version
 // ═══════════════════════════════════════════════════════════
 
-const CACHE_VERSION = "v6";
+const CACHE_VERSION = "v7";
 const CACHE_NAME = `vitalstat-${CACHE_VERSION}`;
 
 // On install: skip waiting immediately — activate instantly

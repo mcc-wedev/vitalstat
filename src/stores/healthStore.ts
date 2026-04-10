@@ -46,37 +46,55 @@ export const useHealthStore = create<HealthState>((set) => ({
 }));
 
 /**
- * Get date filter bounds from preset
+ * Get date filter bounds from preset.
+ *
+ * Uses meta.dateRange.end as the anchor point (last day with data),
+ * NOT the current date. This ensures "7d" means "last 7 days of your data"
+ * even if the export is a few days old. This is consistent with how
+ * Apple Health and Oura present historical data.
  */
 export function getDateBounds(preset: DatePreset, meta: DataMeta | null): { start: string; end: string } | null {
   if (preset === "all" || !meta) return null;
 
   const end = meta.dateRange.end;
-  const endDate = new Date(end);
-  let startDate: Date;
+  const endDate = new Date(end + "T00:00:00Z");
 
   switch (preset) {
-    case "today": {
-      const today = new Date().toISOString().substring(0, 10);
-      return { start: today, end: today };
-    }
+    case "today":
+      // "Today" = last day with data (most recent export date)
+      return { start: end, end };
     case "yesterday": {
-      const y = new Date(Date.now() - 86400000).toISOString().substring(0, 10);
+      // "Yesterday" = day before last day with data
+      const y = new Date(endDate.getTime() - 86400000).toISOString().substring(0, 10);
       return { start: y, end: y };
     }
-    case "7d":  startDate = new Date(endDate.getTime() - 7 * 86400000); break;
-    case "14d": startDate = new Date(endDate.getTime() - 14 * 86400000); break;
-    case "30d": startDate = new Date(endDate.getTime() - 30 * 86400000); break;
-    case "90d": startDate = new Date(endDate.getTime() - 90 * 86400000); break;
-    case "6m":  startDate = new Date(endDate.getTime() - 182 * 86400000); break;
-    case "1y":  startDate = new Date(endDate.getTime() - 365 * 86400000); break;
-    default:    return null;
+    case "7d": {
+      const start = new Date(endDate.getTime() - 6 * 86400000).toISOString().substring(0, 10);
+      return { start, end };
+    }
+    case "14d": {
+      const start = new Date(endDate.getTime() - 13 * 86400000).toISOString().substring(0, 10);
+      return { start, end };
+    }
+    case "30d": {
+      const start = new Date(endDate.getTime() - 29 * 86400000).toISOString().substring(0, 10);
+      return { start, end };
+    }
+    case "90d": {
+      const start = new Date(endDate.getTime() - 89 * 86400000).toISOString().substring(0, 10);
+      return { start, end };
+    }
+    case "6m": {
+      const start = new Date(endDate.getTime() - 182 * 86400000).toISOString().substring(0, 10);
+      return { start, end };
+    }
+    case "1y": {
+      const start = new Date(endDate.getTime() - 364 * 86400000).toISOString().substring(0, 10);
+      return { start, end };
+    }
+    default:
+      return null;
   }
-
-  return {
-    start: startDate.toISOString().substring(0, 10),
-    end,
-  };
 }
 
 /**

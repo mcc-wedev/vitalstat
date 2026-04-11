@@ -218,8 +218,8 @@ export function DailyReport({ date, metrics, sleepNights }: DailyReportProps) {
               <div className="text-xl font-bold tabular-nums">{snap.value.toFixed(decimals)}<span className="text-[10px] text-[var(--muted)] ml-1">{snap.unit}</span></div>
               <div className="text-[9px] text-[var(--muted)] mt-0.5">medie 28z: {snap.baseline.toFixed(decimals)} {snap.unit}</div>
               {/* Mini sparkline */}
-              <div className="h-6 mt-1">
-                <ResponsiveContainer width="100%" height="100%">
+              <div className="hh-chart h-6 mt-1">
+                <ResponsiveContainer width="99%" height="100%">
                   <LineChart data={snap.sparkline.map((v, i) => ({ v, i }))}>
                     <Line type="monotone" dataKey="v" stroke={colors.text} strokeWidth={1.5} dot={false} />
                     <ReferenceDot x={snap.todayIdx} y={snap.sparkline[snap.todayIdx]} r={3} fill={colors.text} stroke="none" />

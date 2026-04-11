@@ -57,8 +57,8 @@ export function RecoveryTimeline({ rhrData, hrvData, sleepData, exerciseData, re
         </div>
       </div>
 
-      <div className="h-52 sm:h-64">
-        <ResponsiveContainer width="100%" height="100%">
+      <div className="hh-chart h-52 sm:h-64">
+        <ResponsiveContainer width="99%" height="100%">
           <LineChart data={data} margin={{ top: 5, right: 8, left: 0, bottom: 0 }}>
             <defs>
               <linearGradient id="scoreGrad" x1="0" y1="0" x2="0" y2="1">

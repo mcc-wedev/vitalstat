@@ -33,10 +33,13 @@ import { CSVExport } from "@/components/CSVExport";
 import { CircadianMap } from "@/components/CircadianMap";
 import { ProgressOverview } from "@/components/ProgressOverview";
 import { AdaptiveAnalysis } from "@/components/AdaptiveAnalysis";
+import { AttentionBanner } from "@/components/AttentionBanner";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { METRIC_CONFIG, CATEGORIES, type MetricCategory } from "@/lib/parser/healthTypes";
 import { generateInsights } from "@/lib/stats/insights";
 import type { DailySummary, SleepNight } from "@/lib/parser/healthTypes";
 import { Onboarding } from "@/components/Onboarding";
+import { ProfileSetup } from "@/components/ProfileSetup";
 import { clearData, exportAllData } from "@/lib/db/indexedDB";
 
 const TABS: { key: MetricCategory | "overview"; label: string; icon: string }[] = [
@@ -112,6 +115,7 @@ export default function Dashboard() {
   return (
     <div className="min-h-screen flex flex-col bg-gradient-subtle">
       <Onboarding />
+      <ProfileSetup shouldShow={hasData} />
 
       {/* ═══ HEADER — Apple style ═══ */}
       <header className="sticky top-0 z-50 backdrop-blur-xl" style={{ borderBottom: "1px solid rgba(84,84,88,0.6)", background: "rgba(0,0,0,0.88)" }}>
@@ -125,6 +129,7 @@ export default function Dashboard() {
               </p>
             </div>
             <div className="flex items-center gap-1">
+              <ThemeToggle />
               {/* Force Refresh — unregisters SW, clears all caches, reloads */}
               <button
                 onClick={async () => {
@@ -299,6 +304,13 @@ function OverviewTab({
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+      {/* ─────────────────────────────────────────── */}
+      {/*  0. IN ATENTIE AZI — critical health signals */}
+      {/*     (illness early warning, HRV crash, sleep  */}
+      {/*     debt). Only renders if alerts exist.      */}
+      {/* ─────────────────────────────────────────── */}
+      <AttentionBanner allMetrics={allMetrics} allSleep={allSleep} />
+
       {/* ─────────────────────────────────────────── */}
       {/*  1. RECUPERARE (Hero) — the single most     */}
       {/*     important number on the whole page      */}

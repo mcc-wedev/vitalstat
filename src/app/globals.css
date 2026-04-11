@@ -57,6 +57,38 @@
   --card-nested: var(--surface-2);
 
   --bottom-nav-height: 0px;
+
+  /* Theme-sensitive opaque overlays (header, bottom nav, tooltip)
+     — these override the hardcoded rgba(0,0,0,..) values via CSS selectors below */
+  --overlay-header: rgba(0,0,0,0.88);
+  --overlay-header-border: rgba(84,84,88,0.6);
+  --overlay-bottom-nav: rgba(22,22,23,0.88);
+  --overlay-tooltip: rgba(30,30,32,0.95);
+}
+
+/* ═══════════════════════════════════════════════════════════ */
+/*  LIGHT THEME — apply with [data-theme="light"] on <html>    */
+/*  Uses iOS light system colors so cards/labels flip cleanly  */
+/* ═══════════════════════════════════════════════════════════ */
+
+[data-theme="light"] {
+  --background: #F2F2F7;         /* systemGroupedBackground */
+  --surface-1: #FFFFFF;          /* secondarySystemGroupedBackground */
+  --surface-2: #F2F2F7;          /* tertiarySystemGroupedBackground */
+  --surface-3: #E5E5EA;
+
+  --label-primary: #000000;
+  --label-secondary: rgba(60, 60, 67, 0.6);
+  --label-tertiary: rgba(60, 60, 67, 0.3);
+  --label-quaternary: rgba(60, 60, 67, 0.18);
+
+  --separator: rgba(60, 60, 67, 0.29);
+  --separator-opaque: #C6C6C8;
+
+  --overlay-header: rgba(255,255,255,0.88);
+  --overlay-header-border: rgba(60,60,67,0.29);
+  --overlay-bottom-nav: rgba(249,249,251,0.88);
+  --overlay-tooltip: rgba(255,255,255,0.97);
 }
 
 @theme inline {
@@ -366,6 +398,27 @@ body {
 }
 
 .bg-gradient-subtle { background: var(--background); }
+
+/* ═══════════════════════════════════════════════════════════ */
+/*  THEME-AWARE OVERLAY OVERRIDES                               */
+/*  Flip hardcoded dark backgrounds to the CSS var in light mode */
+/* ═══════════════════════════════════════════════════════════ */
+
+[data-theme="light"] header[class*="sticky"] {
+  background: var(--overlay-header) !important;
+  border-bottom-color: var(--overlay-header-border) !important;
+}
+[data-theme="light"] .bottom-nav {
+  background: var(--overlay-bottom-nav) !important;
+  border-top-color: var(--separator) !important;
+}
+[data-theme="light"] .recharts-default-tooltip {
+  background: var(--overlay-tooltip) !important;
+  border-color: var(--separator) !important;
+  color: var(--label-primary) !important;
+}
+/* Recharts axis ticks use fill= inline — override */
+[data-theme="light"] .recharts-cartesian-axis-tick text { fill: var(--label-tertiary) !important; }
 
 /* Kill legacy glass effects */
 .glass-hover:hover { background: var(--surface-2); }

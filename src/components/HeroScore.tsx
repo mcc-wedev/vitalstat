@@ -3,6 +3,7 @@
 import { useMemo } from "react";
 import type { DailySummary, SleepNight } from "@/lib/parser/healthTypes";
 import { calculateRecovery } from "@/lib/stats/recovery";
+import { HelpTip } from "./HelpTip";
 
 interface HeroScoreProps {
   rhrData: DailySummary[];
@@ -215,6 +216,10 @@ export function HeroScore({
               : result.confidence === "medium" ? "Aprox."
               : "Limitat"}
           </span>
+          <HelpTip
+            text="Scorul de recuperare combina pana la 8 semnale: HRV (z-score ln-transformed), puls repaus, somn (eficienta + durata + deep/REM + consistenta), balanta antrenament (ACWR), efort ziua precedenta, rata respiratorie, SpO2 si temperatura de piele. Nivelul 'Precis' = toate semnalele disponibile."
+            source="Buchheit 2014 · Plews 2013"
+          />
         </div>
         {result.latestDate && (
           <span className="hh-caption" style={{ color: "var(--label-tertiary)" }}>

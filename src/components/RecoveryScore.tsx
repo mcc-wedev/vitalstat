@@ -143,8 +143,8 @@ export function RecoveryScoreDisplay({ rhrData, hrvData, sleepData }: RecoverySc
       {history.length > 7 && (
         <div className="mt-6">
           <p className="text-xs text-muted mb-2">Trend 30 zile</p>
-          <div className="h-16">
-            <ResponsiveContainer width="100%" height="100%">
+          <div className="hh-chart h-16">
+            <ResponsiveContainer width="99%" height="100%">
               <LineChart data={history}>
                 <XAxis dataKey="date" hide />
                 <Tooltip

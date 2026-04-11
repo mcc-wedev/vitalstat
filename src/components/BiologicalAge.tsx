@@ -58,6 +58,9 @@ export function BiologicalAge({ metrics, sleepNights }: Props) {
 
   useEffect(() => {
     setProfile(loadProfile());
+    const onUpdate = () => setProfile(loadProfile());
+    window.addEventListener("vitalstat-profile-updated", onUpdate);
+    return () => window.removeEventListener("vitalstat-profile-updated", onUpdate);
   }, []);
 
   const handleSave = (age: number, sex: Sex) => {

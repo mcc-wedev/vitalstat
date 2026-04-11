@@ -15,6 +15,7 @@ import { mannKendall, smoothCMA } from "@/lib/stats/advanced";
 import { vo2MaxPercentile, vo2MaxCategory } from "@/lib/stats/norms";
 import { loadProfile } from "@/lib/userProfile";
 import type { UserProfile } from "@/lib/userProfile";
+import { HelpTip } from "./HelpTip";
 
 interface Props {
   data?: DailySummary[];
@@ -39,7 +40,12 @@ interface Props {
  */
 export function Vo2MaxTrajectory({ data }: Props) {
   const [profile, setProfile] = useState<UserProfile | null>(null);
-  useEffect(() => setProfile(loadProfile()), []);
+  useEffect(() => {
+    setProfile(loadProfile());
+    const onUpdate = () => setProfile(loadProfile());
+    window.addEventListener("vitalstat-profile-updated", onUpdate);
+    return () => window.removeEventListener("vitalstat-profile-updated", onUpdate);
+  }, []);
 
   const analysis = useMemo(() => {
     if (!data || data.length < 10) return null;
@@ -109,7 +115,13 @@ export function Vo2MaxTrajectory({ data }: Props) {
   return (
     <div className="hh-card animate-in" style={{ minWidth: 0 }}>
       <div className="hh-section-label" style={{ marginBottom: 8 }}>
-        <span>VO2 Max · traiectorie longevitate</span>
+        <span style={{ display: "inline-flex", alignItems: "center" }}>
+          VO2 Max · traiectorie longevitate
+          <HelpTip
+            text="VO2 Max este cel mai puternic predictor al mortalitatii generale. Fiecare 1 MET (~3.5 mL/kg/min) castigat reduce mortalitatea cu ~13%. Curba portocalie e media mobila de 20 de zile — suprima zgomotul masuratorilor episodice ale Apple Watch."
+            source="Kodama 2009 JAMA (n=102,980)"
+          />
+        </span>
         <span style={{ color: "var(--label-tertiary)", textTransform: "none", letterSpacing: 0 }}>
           Kodama 2009
         </span>
@@ -196,7 +208,13 @@ export function Vo2MaxTrajectory({ data }: Props) {
         <p className="hh-footnote" style={{ color: "var(--label-secondary)", lineHeight: 1.5 }}>
           Trendul pe toata perioada: <b style={{ color: analysis.trendColor }}>{analysis.trendText}</b>
           {analysis.significant && (
-            <span style={{ color: "var(--label-tertiary)" }}> (semnificativ, τ={analysis.tau.toFixed(2)})</span>
+            <span style={{ color: "var(--label-tertiary)" }}>
+              {" "}(semnificativ, τ={analysis.tau.toFixed(2)}
+              <HelpTip
+                text="Testul Mann-Kendall e un test non-parametric pentru tendinta — nu presupune distributie normala. Tau (τ) masoara forta trendului: 1 = crestere perfect monotona, -1 = scadere perfect monotona, 0 = fara trend. 'Semnificativ' = p < 0.05."
+                source="Mann 1945 · Kendall 1975"
+              />)
+            </span>
           )}
           .
           {" "}

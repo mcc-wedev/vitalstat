@@ -31,6 +31,14 @@ export default function RootLayout({
       className="h-full antialiased"
       style={{ fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Display', system-ui, sans-serif" }}
     >
+      <head>
+        {/* Theme init — runs before first paint to avoid FOUC */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var t=localStorage.getItem('vitalstat-theme');if(t==='light')document.documentElement.setAttribute('data-theme','light');}catch(e){}})();`,
+          }}
+        />
+      </head>
       <body className="min-h-full flex flex-col overflow-x-hidden">
         {children}
         <ServiceWorkerRegistrar />

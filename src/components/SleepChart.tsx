@@ -136,7 +136,7 @@ export function SleepChart({ data, days = 30 }: SleepChartProps) {
         </div>
 
         <div className="hh-chart" style={{ height: 200 }}>
-          <ResponsiveContainer width="100%" height="100%">
+          <ResponsiveContainer width="99%" height="100%">
             <BarChart data={chartData} margin={{ top: 5, right: 8, bottom: 5, left: 0 }}>
               <XAxis
                 dataKey="date"

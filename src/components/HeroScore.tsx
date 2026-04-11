@@ -173,19 +173,49 @@ export function HeroScore({
 
   return (
     <div className="hh-card animate-scale-in" style={{ padding: "20px 20px 18px" }}>
-      {/* Uppercase section label + date/period */}
+      {/* Uppercase section label + confidence badge + date/period */}
       <div className="flex items-center justify-between" style={{ marginBottom: 8 }}>
-        <span
-          className="hh-caption"
-          style={{
-            color: "var(--label-secondary)",
-            letterSpacing: "0.045em",
-            textTransform: "uppercase",
-            fontWeight: 500,
-          }}
-        >
-          Recuperare {isAverage && periodLabel ? `· medie ${periodLabel.toLowerCase()}` : ""}
-        </span>
+        <div className="flex items-center gap-2 min-w-0">
+          <span
+            className="hh-caption"
+            style={{
+              color: "var(--label-secondary)",
+              letterSpacing: "0.045em",
+              textTransform: "uppercase",
+              fontWeight: 500,
+            }}
+          >
+            Recuperare {isAverage && periodLabel ? `· medie ${periodLabel.toLowerCase()}` : ""}
+          </span>
+          <span
+            title={
+              result.confidence === "high" ? "Toate semnalele disponibile"
+              : result.confidence === "medium" ? "Cateva semnale indisponibile"
+              : "Date limitate — precizie redusa"
+            }
+            style={{
+              fontSize: 9,
+              fontWeight: 700,
+              letterSpacing: "0.05em",
+              textTransform: "uppercase",
+              padding: "2px 6px",
+              borderRadius: 999,
+              background:
+                result.confidence === "high" ? "rgba(52,199,89,0.15)"
+                : result.confidence === "medium" ? "rgba(255,149,0,0.15)"
+                : "rgba(255,59,48,0.15)",
+              color:
+                result.confidence === "high" ? "#34C759"
+                : result.confidence === "medium" ? "#FF9500"
+                : "#FF3B30",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {result.confidence === "high" ? "Precis"
+              : result.confidence === "medium" ? "Aprox."
+              : "Limitat"}
+          </span>
+        </div>
         {result.latestDate && (
           <span className="hh-caption" style={{ color: "var(--label-tertiary)" }}>
             {isAverage

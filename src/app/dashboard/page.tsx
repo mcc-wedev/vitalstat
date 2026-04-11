@@ -32,6 +32,7 @@ import { ShareCard } from "@/components/ShareCard";
 import { CSVExport } from "@/components/CSVExport";
 import { CircadianMap } from "@/components/CircadianMap";
 import { ProgressOverview } from "@/components/ProgressOverview";
+import { AdaptiveAnalysis } from "@/components/AdaptiveAnalysis";
 import { METRIC_CONFIG, CATEGORIES, type MetricCategory } from "@/lib/parser/healthTypes";
 import { generateInsights } from "@/lib/stats/insights";
 import type { DailySummary, SleepNight } from "@/lib/parser/healthTypes";
@@ -518,6 +519,8 @@ function OverviewTab({
           showAllInsights={showAllInsights}
           setShowAllInsights={setShowAllInsights}
           onHide={() => setShowAdvanced(false)}
+          windowDays={periodDates.length || 30}
+          periodLabel={periodLabel}
         />
       )}
     </div>
@@ -573,7 +576,7 @@ function ActionableHighlights({
  * Everything advanced — behind a toggle, so the overview stays clean.
  */
 function AdvancedSections({
-  metrics, sleepNights, allMetrics, allSleep, recoveryTargetDate, showAllInsights, setShowAllInsights, onHide,
+  metrics, sleepNights, allMetrics, allSleep, recoveryTargetDate, showAllInsights, setShowAllInsights, onHide, windowDays, periodLabel,
 }: {
   metrics: Record<string, DailySummary[]>;
   sleepNights: SleepNight[];
@@ -583,9 +586,28 @@ function AdvancedSections({
   showAllInsights: boolean;
   setShowAllInsights: (v: boolean) => void;
   onHide: () => void;
+  windowDays: number;
+  periodLabel: string;
 }) {
   return (
     <div className="animate-in" style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+      {/* Period-adaptive analysis — acute/trend/progression/longevity
+          picks different sections based on selected window size */}
+      <section>
+        <div className="hh-section-label">
+          <span>Analiza adaptiva</span>
+          <span style={{ color: "var(--label-tertiary)", textTransform: "none", letterSpacing: 0 }}>{periodLabel}</span>
+        </div>
+        <AdaptiveAnalysis
+          metrics={metrics}
+          sleepNights={sleepNights}
+          allMetrics={allMetrics}
+          allSleep={allSleep}
+          windowDays={windowDays}
+          periodLabel={periodLabel}
+        />
+      </section>
+
       <TrendAlerts metrics={metrics} sleepNights={sleepNights} />
       <RecoveryPrediction metrics={allMetrics} sleepNights={allSleep} targetDate={recoveryTargetDate} />
 

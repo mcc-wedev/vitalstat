@@ -35,6 +35,7 @@ import { ProgressOverview } from "@/components/ProgressOverview";
 import { AdaptiveAnalysis } from "@/components/AdaptiveAnalysis";
 import { AttentionBanner } from "@/components/AttentionBanner";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { Hypnogram } from "@/components/Hypnogram";
 import { METRIC_CONFIG, CATEGORIES, type MetricCategory } from "@/lib/parser/healthTypes";
 import { generateInsights } from "@/lib/stats/insights";
 import type { DailySummary, SleepNight } from "@/lib/parser/healthTypes";
@@ -601,6 +602,9 @@ function SleepTab({ metrics, sleepNights, allMetrics, allSleep }: { metrics: Rec
         <span>🌙</span> Somn
         <span className="text-[15px] font-normal" style={{ color: "rgba(235,235,245,0.3)" }}>({sleepNights.length} nopti)</span>
       </h2>
+
+      {/* Hypnogram — per-night sleep stages timeline (new imports only) */}
+      <Hypnogram sleepNights={sleepNights} />
 
       {/* Sleep chart first — most visual */}
       <SleepChart data={sleepNights} days={sleepNights.length} />

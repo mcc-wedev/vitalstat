@@ -280,6 +280,7 @@ function processSleepRecords(records) {
 
     let deepMin = 0, coreMin = 0, remMin = 0, awakeMin = 0, inBedMin = 0;
     let earliestBed = null, latestWake = null;
+    const segments = [];
 
     for (const r of useRecs) {
       const start = new Date(r.startDate);
@@ -288,15 +289,23 @@ function processSleepRecords(records) {
       if (!earliestBed || start < earliestBed) earliestBed = start;
       if (!latestWake || end > latestWake) latestWake = end;
 
+      let segStage = null;
       switch (r.stage) {
-        case "HKCategoryValueSleepAnalysisAsleepDeep": deepMin += mins; break;
-        case "HKCategoryValueSleepAnalysisAsleepCore": coreMin += mins; break;
-        case "HKCategoryValueSleepAnalysisAsleepREM": remMin += mins; break;
-        case "HKCategoryValueSleepAnalysisAwake": awakeMin += mins; break;
-        case "HKCategoryValueSleepAnalysisInBed": inBedMin += mins; break;
-        case "HKCategoryValueSleepAnalysisAsleep": coreMin += mins; break;
+        case "HKCategoryValueSleepAnalysisAsleepDeep": deepMin += mins; segStage = "deep"; break;
+        case "HKCategoryValueSleepAnalysisAsleepCore": coreMin += mins; segStage = "core"; break;
+        case "HKCategoryValueSleepAnalysisAsleepREM":  remMin  += mins; segStage = "rem";  break;
+        case "HKCategoryValueSleepAnalysisAwake":      awakeMin+= mins; segStage = "awake";break;
+        case "HKCategoryValueSleepAnalysisInBed":      inBedMin+= mins; segStage = "inBed";break;
+        case "HKCategoryValueSleepAnalysisAsleep":     coreMin += mins; segStage = "core"; break;
+      }
+      // Only push non-inBed stages to the hypnogram (inBed is the outer envelope)
+      if (segStage && segStage !== "inBed") {
+        segments.push({ s: r.startDate, e: r.endDate, st: segStage });
       }
     }
+
+    // Sort segments by start time for clean rendering
+    segments.sort((a, b) => (a.s < b.s ? -1 : 1));
 
     const totalSleep = deepMin + coreMin + remMin;
     const totalInBed = inBedMin > 0 ? inBedMin : totalSleep + awakeMin;
@@ -315,6 +324,7 @@ function processSleepRecords(records) {
       sleepMidpoint: midpoint,
       bedtime: earliestBed ? earliestBed.toISOString() : "",
       wakeTime: latestWake ? latestWake.toISOString() : "",
+      segments,
     });
   }
 

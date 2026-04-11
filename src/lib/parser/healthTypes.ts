@@ -90,6 +90,17 @@ export interface DailySummary {
   stddev: number;
 }
 
+export type SleepStage = "deep" | "core" | "rem" | "awake" | "inBed";
+
+export interface SleepSegment {
+  /** ISO start time */
+  s: string;
+  /** ISO end time */
+  e: string;
+  /** Stage */
+  st: SleepStage;
+}
+
 export interface SleepNight {
   date: string;
   totalMinutes: number;
@@ -99,6 +110,10 @@ export interface SleepNight {
   sleepMidpoint: number;
   bedtime: string;
   wakeTime: string;
+  /** Raw sleep segments for hypnogram rendering. Optional — only present
+   *  for nights imported after the per-segment parser update. Older imports
+   *  will lack this field and the Hypnogram component will silently hide. */
+  segments?: SleepSegment[];
 }
 
 export interface DataMeta {

@@ -7,6 +7,7 @@ import { calculateRecovery } from "@/lib/stats/recovery";
 import { meanStd } from "@/lib/stats/zScore";
 import { generateInsights } from "@/lib/stats/insights";
 import { LineChart, Line, ResponsiveContainer, ReferenceDot } from "recharts";
+import { ShareDailyReport } from "./ShareDailyReport";
 
 interface DailyReportProps {
   date: string; // "YYYY-MM-DD"
@@ -165,6 +166,9 @@ export function DailyReport({ date, metrics, sleepNights }: DailyReportProps) {
       <div className="text-center">
         <h2 className="text-lg font-semibold capitalize">{dayLabel}</h2>
         <p className="text-xs text-[var(--muted)]">{date}</p>
+        <div className="mt-3 flex justify-center">
+          <ShareDailyReport date={date} metrics={metrics} sleepNights={sleepNights} />
+        </div>
       </div>
 
       {/* Recovery Score — compact horizontal */}

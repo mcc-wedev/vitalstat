@@ -8,6 +8,9 @@ import { meanStd } from "@/lib/stats/zScore";
 import { generateInsights } from "@/lib/stats/insights";
 import { LineChart, Line, ResponsiveContainer, ReferenceDot } from "recharts";
 import { ShareDailyReport } from "./ShareDailyReport";
+import { RecoveryRootCause } from "./RecoveryRootCause";
+import { LaggedCausality } from "./LaggedCausality";
+import { BestDayPredictor } from "./BestDayPredictor";
 
 interface DailyReportProps {
   date: string; // "YYYY-MM-DD"
@@ -200,6 +203,9 @@ export function DailyReport({ date, metrics, sleepNights }: DailyReportProps) {
         </div>
       )}
 
+      {/* Root-cause explainer — why this score today */}
+      <RecoveryRootCause date={date} metrics={metrics} sleepNights={sleepNights} />
+
       {/* Metric cards grid — traffic light */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
         {snapshots.map(snap => {
@@ -255,6 +261,12 @@ export function DailyReport({ date, metrics, sleepNights }: DailyReportProps) {
           </div>
         )}
       </div>
+
+      {/* Lagged causality patterns */}
+      <LaggedCausality metrics={metrics} sleepNights={sleepNights} />
+
+      {/* Best day predictor */}
+      <BestDayPredictor metrics={metrics} sleepNights={sleepNights} />
 
       {/* Top insights */}
       {topInsights.length > 0 && (

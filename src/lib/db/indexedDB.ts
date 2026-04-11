@@ -27,22 +27,60 @@ function getDB() {
   return dbPromise;
 }
 
+export interface ImportDelta {
+  /** Number of metric day-rows NEW in this import (not previously in DB). */
+  newMetricDays: number;
+  /** Number of sleep nights NEW in this import. */
+  newSleepNights: number;
+  /** Resulting unified date range after merge. */
+  dateRange: { start: string; end: string };
+}
+
 /**
- * Save parsed health data — INCREMENTAL: merges with existing data
+ * Save parsed health data — INCREMENTAL: merges with existing data.
+ * Returns a delta describing what was actually added so the UI can
+ * show "Added X new days" instead of re-reporting total records.
  */
 export async function saveHealthData(
   summaries: Record<string, DailySummary[]>,
   sleepNights: SleepNight[],
   meta: DataMeta
-): Promise<void> {
+): Promise<ImportDelta> {
   const db = await getDB();
+
+  // Snapshot existing metric + sleep keys so we can count new rows
+  const existingMetricIds = new Set<string>();
+  {
+    const tx = db.transaction("metrics", "readonly");
+    let cursor = await tx.objectStore("metrics").openCursor();
+    while (cursor) {
+      existingMetricIds.add(cursor.key as string);
+      cursor = await cursor.continue();
+    }
+    await tx.done;
+  }
+  const existingSleepDates = new Set<string>();
+  {
+    const tx = db.transaction("sleep", "readonly");
+    let cursor = await tx.objectStore("sleep").openCursor();
+    while (cursor) {
+      existingSleepDates.add(cursor.key as string);
+      cursor = await cursor.continue();
+    }
+    await tx.done;
+  }
+
+  let newMetricDays = 0;
+  let newSleepNights = 0;
 
   // Merge metrics (put = upsert, overwrites if same key:date exists)
   const tx2 = db.transaction("metrics", "readwrite");
   const store = tx2.objectStore("metrics");
   for (const [key, days] of Object.entries(summaries)) {
     for (const day of days) {
-      await store.put({ id: `${key}:${day.date}`, key, ...day });
+      const id = `${key}:${day.date}`;
+      if (!existingMetricIds.has(id)) newMetricDays++;
+      await store.put({ id, key, ...day });
     }
   }
   await tx2.done;
@@ -50,18 +88,20 @@ export async function saveHealthData(
   // Merge sleep (put = upsert by date)
   const tx3 = db.transaction("sleep", "readwrite");
   for (const night of sleepNights) {
+    if (!existingSleepDates.has(night.date)) newSleepNights++;
     await tx3.objectStore("sleep").put(night);
   }
   await tx3.done;
 
-  // Update meta: expand date range, update record count
+  // Update meta: expand date range, recalculate total record count from DB
+  // (avoids over-counting on repeated imports of overlapping data).
   const existingMeta = await getMeta();
+  const totalMetricRows = await db.count("metrics");
+  const totalSleepRows = await db.count("sleep");
   const mergedMeta: DataMeta & { id: string } = {
     id: "main",
     importDate: meta.importDate,
-    totalRecords: existingMeta
-      ? existingMeta.totalRecords + meta.totalRecords
-      : meta.totalRecords,
+    totalRecords: totalMetricRows + totalSleepRows,
     dateRange: {
       start: existingMeta
         ? meta.dateRange.start < existingMeta.dateRange.start ? meta.dateRange.start : existingMeta.dateRange.start
@@ -81,6 +121,8 @@ export async function saveHealthData(
   const tx4 = db.transaction("meta", "readwrite");
   await tx4.objectStore("meta").put(mergedMeta);
   await tx4.done;
+
+  return { newMetricDays, newSleepNights, dateRange: mergedMeta.dateRange };
 }
 
 export async function getMetricData(metricKey: string): Promise<DailySummary[]> {

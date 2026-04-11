@@ -5,6 +5,7 @@ import type { DailySummary, SleepNight } from "@/lib/parser/healthTypes";
 import { getDisplayValue } from "@/lib/parser/healthTypes";
 import { mannKendall, coefficientOfVariation, bootstrapCI, detectWeeklyCycle } from "@/lib/stats/advanced";
 import { generateSmartInsights, type SmartInsight } from "@/lib/stats/smartInsights";
+import { useProfile } from "@/lib/useProfile";
 import { TrendAnalysis } from "./TrendAnalysis";
 import { FitnessFatigueChart } from "./FitnessFatigueChart";
 import { Vo2MaxTrajectory } from "./Vo2MaxTrajectory";
@@ -38,9 +39,10 @@ export function AdaptiveAnalysis({ metrics, sleepNights, allMetrics, allSleep, w
     windowDays <= 180 ? "progression" :
     "longevity";
 
+  const profile = useProfile();
   const insights = useMemo(
-    () => generateSmartInsights(metrics, sleepNights, allMetrics, allSleep, windowDays).slice(0, 5),
-    [metrics, sleepNights, allMetrics, allSleep, windowDays],
+    () => generateSmartInsights(metrics, sleepNights, allMetrics, allSleep, windowDays, profile).slice(0, 5),
+    [metrics, sleepNights, allMetrics, allSleep, windowDays, profile?.age, profile?.sex],
   );
 
   return (

@@ -56,6 +56,10 @@ export function generateSmartInsights(
   allMetrics: Record<string, DailySummary[]>,
   allSleep: SleepNight[],
   windowDays: number,
+  /** Optional profile override. When passed (from React via useProfile),
+   *  percentile insights recompute immediately when the user saves a new
+   *  age/sex instead of only on page reload. */
+  profileOverride?: import("../userProfile").UserProfile | null,
 ): SmartInsight[] {
   const out: SmartInsight[] = [];
 
@@ -68,7 +72,7 @@ export function generateSmartInsights(
   // Always on — period-agnostic safety signals
   out.push(...illnessEarlyWarning(allMetrics, allSleep));
   out.push(...hrvSurveillance(allMetrics));
-  out.push(...personalNorms(allMetrics));
+  out.push(...personalNorms(allMetrics, profileOverride));
 
   if (mode === "acute") {
     out.push(...acuteRecoveryInsights(metrics, sleepNights, allMetrics, allSleep));
@@ -224,9 +228,14 @@ function hrvSurveillance(metrics: Record<string, DailySummary[]>): SmartInsight[
 }
 
 /* ── Always-on: personal norms ── */
-function personalNorms(metrics: Record<string, DailySummary[]>): SmartInsight[] {
+function personalNorms(
+  metrics: Record<string, DailySummary[]>,
+  profileOverride?: import("../userProfile").UserProfile | null,
+): SmartInsight[] {
   const out: SmartInsight[] = [];
-  const profile = loadProfile();
+  // Prefer explicit override (reactive from React). Fall back to
+  // localStorage lookup so non-React callers (exports, etc.) still work.
+  const profile = profileOverride !== undefined ? profileOverride : loadProfile();
   if (!profile) return out;
 
   // VO2 Max — strongest mortality predictor

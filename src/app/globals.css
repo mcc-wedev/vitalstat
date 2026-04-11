@@ -210,9 +210,19 @@ body {
   max-width: 100% !important;
   min-width: 0 !important;
 }
-.recharts-wrapper, .recharts-surface {
-  max-width: 100% !important;
-}
+/*
+ * Do NOT apply max-width to .recharts-wrapper or .recharts-surface.
+ *
+ * In Recharts 3.x, the responsive container wraps its content in a
+ * 0x0 `overflow: visible` measurement div used by ResizeObserver.
+ * `.recharts-wrapper` is nested inside that div. Setting
+ * `max-width: 100%` on the wrapper resolves against the 0-width
+ * measurement parent and collapses all charts to zero width on
+ * mobile — so charts render as empty cards.
+ *
+ * The outer `.recharts-responsive-container` already prevents
+ * overflow, which is all we need.
+ */
 
 /* Grid children: prevent content-based expansion (critical for charts in grids) */
 [class*="grid"] > * { min-width: 0; }

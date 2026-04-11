@@ -14,6 +14,8 @@ interface InsightsPanelProps {
   /** Full dataset for baseline context (insights always need historical data) */
   fullMetrics?: Record<string, DailySummary[]>;
   fullSleep?: SleepNight[];
+  /** Only show alerts/warnings (hide info/good). For overview "Highlights". */
+  actionableOnly?: boolean;
 }
 
 const SEV: Record<InsightSeverity, { color: string; label: string }> = {
@@ -25,18 +27,21 @@ const SEV: Record<InsightSeverity, { color: string; label: string }> = {
 
 const SEV_ORDER: InsightSeverity[] = ["alert", "warning", "info", "good"];
 
-export function InsightsPanel({ metrics, sleepNights, filter, maxItems, compact, fullMetrics, fullSleep }: InsightsPanelProps) {
+export function InsightsPanel({ metrics, sleepNights, filter, maxItems, compact, fullMetrics, fullSleep, actionableOnly }: InsightsPanelProps) {
   const insights = useMemo(() => {
-    // CRITICAL: always pass full dataset to insights engine.
-    // Slicing (slice(-14,-7) etc) breaks on short periods.
     const sourceMetrics = fullMetrics || metrics;
     const sourceSleep = fullSleep || sleepNights;
     let all = generateInsights(sourceMetrics, sourceSleep);
     if (filter) all = all.filter(i => i.category === filter || i.metric === filter);
+    // Filter to only actionable insights (alert or warning) when requested.
+    // Drops generic "info" and "good" insights that just confirm things are fine.
+    if (actionableOnly) {
+      all = all.filter(i => i.severity === "alert" || i.severity === "warning");
+    }
     all.sort((a, b) => SEV_ORDER.indexOf(a.severity) - SEV_ORDER.indexOf(b.severity));
     if (maxItems) all = all.slice(0, maxItems);
     return all;
-  }, [metrics, sleepNights, filter, maxItems, fullMetrics, fullSleep]);
+  }, [metrics, sleepNights, filter, maxItems, fullMetrics, fullSleep, actionableOnly]);
 
   if (insights.length === 0) return null;
 

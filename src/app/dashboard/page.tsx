@@ -31,7 +31,9 @@ import { SmartSleepTips } from "@/components/SmartSleepTips";
 import { ShareCard } from "@/components/ShareCard";
 import { CSVExport } from "@/components/CSVExport";
 import { CircadianMap } from "@/components/CircadianMap";
+import { ProgressOverview } from "@/components/ProgressOverview";
 import { METRIC_CONFIG, CATEGORIES, type MetricCategory } from "@/lib/parser/healthTypes";
+import { generateInsights } from "@/lib/stats/insights";
 import type { DailySummary, SleepNight } from "@/lib/parser/healthTypes";
 import { Onboarding } from "@/components/Onboarding";
 import { clearData, exportAllData } from "@/lib/db/indexedDB";
@@ -397,11 +399,11 @@ function OverviewTab({
     return labels[datePreset] || "30 zile";
   }, [datePreset]);
 
-  // Favorites: pinned key metrics (Apple Health "Favorites" section)
-  const favoriteMetrics = ["restingHeartRate", "hrv", "stepCount", "activeEnergy", "oxygenSaturation", "vo2Max", "exerciseTime", "bodyMass"]
+  // Favorites: only 6 cards max (Apple Health style)
+  const favoriteMetrics = ["restingHeartRate", "hrv", "stepCount", "activeEnergy", "exerciseTime", "vo2Max"]
     .filter(k => metrics[k]?.length > 0);
 
-  // Dates in the selected period — used to compute period-average recovery
+  // Dates in the selected period — for period-average recovery
   const periodDates = useMemo(() => {
     const dates = new Set<string>();
     for (const arr of Object.values(metrics)) {
@@ -410,63 +412,71 @@ function OverviewTab({
     return [...dates].sort();
   }, [metrics]);
 
+  const [showAdvanced, setShowAdvanced] = useState(false);
+
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>
-      {/* ═══ RECUPERARE (Hero) ═══ */}
+    <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+      {/* ─────────────────────────────────────────── */}
+      {/*  1. RECUPERARE (Hero) — the single most     */}
+      {/*     important number on the whole page      */}
+      {/* ─────────────────────────────────────────── */}
+      <HeroScore
+        rhrData={allMetrics.restingHeartRate || []}
+        hrvData={allMetrics.hrv || []}
+        sleepData={allSleep}
+        exerciseData={allMetrics.exerciseTime}
+        respData={allMetrics.respiratoryRate}
+        spo2Data={allMetrics.oxygenSaturation}
+        tempData={allMetrics.wristTemperature}
+        periodDates={periodDates}
+        periodLabel={periodLabel}
+      />
+
+      {/* ─────────────────────────────────────────── */}
+      {/*  2. PROGRES — clear week-over-week deltas   */}
+      {/*     "Did I improve? By how much?"           */}
+      {/* ─────────────────────────────────────────── */}
+      <ProgressOverview
+        metrics={allMetrics}
+        sleepNights={allSleep}
+        windowDays={periodDates.length || 7}
+        periodLabel={periodLabel}
+      />
+
+      {/* ─────────────────────────────────────────── */}
+      {/*  3. IN ATENTIE — only actionable alerts     */}
+      {/*     (max 3, only alert/warning severity)   */}
+      {/* ─────────────────────────────────────────── */}
       <section>
         <div className="hh-section-label">
-          <span>Recuperare</span>
-          <span style={{ color: "var(--label-tertiary)", textTransform: "none", letterSpacing: 0 }}>{periodLabel}</span>
+          <span>In atentie</span>
         </div>
-        <HeroScore
-          rhrData={allMetrics.restingHeartRate || []}
-          hrvData={allMetrics.hrv || []}
-          sleepData={allSleep}
-          exerciseData={allMetrics.exerciseTime}
-          respData={allMetrics.respiratoryRate}
-          spo2Data={allMetrics.oxygenSaturation}
-          tempData={allMetrics.wristTemperature}
-          periodDates={periodDates}
-          periodLabel={periodLabel}
+        <ActionableHighlights
+          metrics={metrics}
+          sleepNights={sleepNights}
+          allMetrics={allMetrics}
+          allSleep={allSleep}
         />
       </section>
 
-      {/* ═══ HIGHLIGHTS (top 4 insights — Apple "Highlights") ═══ */}
-      {(() => {
-        return (
-          <section>
-            <div className="hh-section-label">
-              <span>In atentie</span>
-            </div>
-            <InsightsPanel
-              metrics={metrics}
-              sleepNights={sleepNights}
-              fullMetrics={allMetrics}
-              fullSleep={allSleep}
-              maxItems={4}
-            />
-          </section>
-        );
-      })()}
-
-      {/* ═══ FAVORITES (Apple "Favorites" — pinned metric cards) ═══ */}
+      {/* ─────────────────────────────────────────── */}
+      {/*  4. FAVORITE — 6 key metric cards           */}
+      {/* ─────────────────────────────────────────── */}
       <section>
         <div className="hh-section-label">
           <span>Favorite</span>
           <span style={{ color: "var(--label-tertiary)", textTransform: "none", letterSpacing: 0 }}>{periodLabel}</span>
         </div>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 stagger-in">
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 stagger-in">
           {favoriteMetrics.map((key) => (
             <MetricCard key={key} metricKey={key} data={metrics[key]} />
           ))}
         </div>
       </section>
 
-      {/* ═══ ALERTE (doar daca exista probleme detectate) ═══ */}
-      <TrendAlerts metrics={metrics} sleepNights={sleepNights} />
-      <RecoveryPrediction metrics={allMetrics} sleepNights={allSleep} targetDate={recoveryTargetDate} />
-
-      {/* ═══ TRENDURI CHEIE (2 grafice mari) ═══ */}
+      {/* ─────────────────────────────────────────── */}
+      {/*  5. TRENDURI — just 2 charts (RHR + HRV)    */}
+      {/* ─────────────────────────────────────────── */}
       <section>
         <div className="hh-section-label">
           <span>Tendinte</span>
@@ -478,93 +488,13 @@ function OverviewTab({
         </div>
       </section>
 
-      {/* ═══ ANTRENAMENT & VARSTA (2 carduri side-by-side) ═══ */}
-      <section>
-        <div className="hh-section-label">
-          <span>Antrenament si longevitate</span>
-        </div>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-          <StrainCoach metrics={metrics} sleepNights={sleepNights} />
-          <BiologicalAge metrics={metrics} sleepNights={sleepNights} />
-        </div>
-      </section>
-
-      {/* ═══ OBIECTIVE & RECAP SAPTAMANAL ═══ */}
-      <section>
-        <div className="hh-section-label">
-          <span>Performanta saptamanala</span>
-        </div>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-          <GoalsTracker metrics={metrics} sleepNights={sleepNights} />
-          <WeeklyDigest metrics={metrics} sleepNights={sleepNights} />
-        </div>
-      </section>
-
-      {/* ═══ ANALIZA APROFUNDATA ═══ */}
-      <section>
-        <div className="hh-section-label">
-          <span>Analiza aprofundata</span>
-        </div>
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
-          <ResilienceScore metrics={metrics} sleepNights={sleepNights} />
-          <StabilityScores metrics={metrics} sleepNights={sleepNights} />
-          <SleepBank sleepNights={sleepNights} />
-        </div>
-      </section>
-
-      {/* ═══ TIMELINE RECUPERARE ═══ */}
-      <section>
-        <div className="hh-section-label">
-          <span>Istoric recuperare</span>
-        </div>
-        <RecoveryTimeline
-          rhrData={metrics.restingHeartRate || []}
-          hrvData={metrics.hrv || []}
-          sleepData={sleepNights}
-          exerciseData={metrics.exerciseTime}
-          respData={metrics.respiratoryRate}
-          spo2Data={metrics.oxygenSaturation}
-          tempData={metrics.wristTemperature}
-        />
-      </section>
-
-      {/* ═══ VIZUALIZARI (Calendar + Corelatii) ═══ */}
-      <section>
-        <div className="hh-section-label">
-          <span>Vizualizari</span>
-        </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          <CalendarHeatmap metrics={metrics} />
-          <CorrelationHeatmap metrics={metrics} />
-        </div>
-      </section>
-
-      {/* ═══ JURNAL COMPORTAMENTAL + RECAP LUNAR ═══ */}
-      <section>
-        <div className="hh-section-label">
-          <span>Comportament si istoric</span>
-        </div>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-          <BehaviorJournal metrics={metrics} sleepNights={sleepNights} />
-          <MonthlyRecap metrics={metrics} sleepNights={sleepNights} />
-        </div>
-      </section>
-
-      {/* ═══ SIMULATOARE ═══ */}
-      <section>
-        <div className="hh-section-label">
-          <span>Simulari si comparatii</span>
-        </div>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-          <WhatIfSimulator metrics={metrics} sleepNights={sleepNights} />
-          <AgeBenchmark metrics={metrics} />
-        </div>
-      </section>
-
-      {/* ═══ TOATE INSIGHT-URILE ═══ */}
-      {!showAllInsights ? (
+      {/* ─────────────────────────────────────────── */}
+      {/*  6. ADVANCED TOGGLE — hide everything else  */}
+      {/*     behind a single "Show more" button      */}
+      {/* ─────────────────────────────────────────── */}
+      {!showAdvanced ? (
         <button
-          onClick={() => setShowAllInsights(true)}
+          onClick={() => setShowAdvanced(true)}
           className="hh-card hh-card-tappable"
           style={{
             textAlign: "center",
@@ -576,34 +506,173 @@ function OverviewTab({
             width: "100%",
           }}
         >
+          Afiseaza analize avansate →
+        </button>
+      ) : (
+        <AdvancedSections
+          metrics={metrics}
+          sleepNights={sleepNights}
+          allMetrics={allMetrics}
+          allSleep={allSleep}
+          recoveryTargetDate={recoveryTargetDate}
+          showAllInsights={showAllInsights}
+          setShowAllInsights={setShowAllInsights}
+          onHide={() => setShowAdvanced(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+/**
+ * Actionable highlights — alerts and warnings only.
+ * If nothing is wrong, shows a clean "all good" state.
+ */
+function ActionableHighlights({
+  metrics, sleepNights, allMetrics, allSleep,
+}: {
+  metrics: Record<string, DailySummary[]>;
+  sleepNights: SleepNight[];
+  allMetrics: Record<string, DailySummary[]>;
+  allSleep: SleepNight[];
+}) {
+  const actionableInsights = useMemo(() => {
+    const all = generateInsights(allMetrics, allSleep);
+    return all.filter(i => i.severity === "alert" || i.severity === "warning").slice(0, 3);
+  }, [allMetrics, allSleep]);
+
+  if (actionableInsights.length === 0) {
+    return (
+      <div className="hh-card" style={{ textAlign: "center", padding: "20px" }}>
+        <div className="hh-mono-num" style={{ fontSize: 28, color: "var(--success)", fontWeight: 700, marginBottom: 4 }}>
+          ✓
+        </div>
+        <p className="hh-body" style={{ color: "var(--label-primary)", fontWeight: 600 }}>
+          Nimic de semnalat
+        </p>
+        <p className="hh-footnote" style={{ color: "var(--label-secondary)", marginTop: 2 }}>
+          Toti indicatorii tai sunt in parametri normali.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <InsightsPanel
+      metrics={metrics}
+      sleepNights={sleepNights}
+      fullMetrics={allMetrics}
+      fullSleep={allSleep}
+      maxItems={3}
+      actionableOnly
+    />
+  );
+}
+
+/**
+ * Everything advanced — behind a toggle, so the overview stays clean.
+ */
+function AdvancedSections({
+  metrics, sleepNights, allMetrics, allSleep, recoveryTargetDate, showAllInsights, setShowAllInsights, onHide,
+}: {
+  metrics: Record<string, DailySummary[]>;
+  sleepNights: SleepNight[];
+  allMetrics: Record<string, DailySummary[]>;
+  allSleep: SleepNight[];
+  recoveryTargetDate: string;
+  showAllInsights: boolean;
+  setShowAllInsights: (v: boolean) => void;
+  onHide: () => void;
+}) {
+  return (
+    <div className="animate-in" style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+      <TrendAlerts metrics={metrics} sleepNights={sleepNights} />
+      <RecoveryPrediction metrics={allMetrics} sleepNights={allSleep} targetDate={recoveryTargetDate} />
+
+      <section>
+        <div className="hh-section-label"><span>Antrenament si longevitate</span></div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+          <StrainCoach metrics={metrics} sleepNights={sleepNights} />
+          <BiologicalAge metrics={metrics} sleepNights={sleepNights} />
+        </div>
+      </section>
+
+      <section>
+        <div className="hh-section-label"><span>Performanta saptamanala</span></div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+          <GoalsTracker metrics={metrics} sleepNights={sleepNights} />
+          <WeeklyDigest metrics={metrics} sleepNights={sleepNights} />
+        </div>
+      </section>
+
+      <section>
+        <div className="hh-section-label"><span>Analiza aprofundata</span></div>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+          <ResilienceScore metrics={metrics} sleepNights={sleepNights} />
+          <StabilityScores metrics={metrics} sleepNights={sleepNights} />
+          <SleepBank sleepNights={sleepNights} />
+        </div>
+      </section>
+
+      <section>
+        <div className="hh-section-label"><span>Istoric recuperare</span></div>
+        <RecoveryTimeline
+          rhrData={metrics.restingHeartRate || []}
+          hrvData={metrics.hrv || []}
+          sleepData={sleepNights}
+          exerciseData={metrics.exerciseTime}
+          respData={metrics.respiratoryRate}
+          spo2Data={metrics.oxygenSaturation}
+          tempData={metrics.wristTemperature}
+        />
+      </section>
+
+      <section>
+        <div className="hh-section-label"><span>Vizualizari</span></div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <CalendarHeatmap metrics={metrics} />
+          <CorrelationHeatmap metrics={metrics} />
+        </div>
+      </section>
+
+      <section>
+        <div className="hh-section-label"><span>Jurnal si recap lunar</span></div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+          <BehaviorJournal metrics={metrics} sleepNights={sleepNights} />
+          <MonthlyRecap metrics={metrics} sleepNights={sleepNights} />
+        </div>
+      </section>
+
+      <section>
+        <div className="hh-section-label"><span>Simulari si comparatii</span></div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+          <WhatIfSimulator metrics={metrics} sleepNights={sleepNights} />
+          <AgeBenchmark metrics={metrics} />
+        </div>
+      </section>
+
+      {!showAllInsights ? (
+        <button
+          onClick={() => setShowAllInsights(true)}
+          className="hh-card hh-card-tappable"
+          style={{ textAlign: "center", color: "var(--accent)", fontSize: 15, fontWeight: 600, cursor: "pointer", border: "none", width: "100%" }}
+        >
           Vezi toate interpretarile →
         </button>
       ) : (
-        <section className="animate-in">
+        <section>
           <div className="hh-section-label"><span>Toate interpretarile</span></div>
           <InsightsPanel metrics={metrics} sleepNights={sleepNights} fullMetrics={allMetrics} fullSleep={allSleep} />
         </section>
       )}
 
-      {/* ═══ METRICI SUPLIMENTARE PE CATEGORIE ═══ */}
-      {(Object.keys(CATEGORIES) as MetricCategory[]).map((cat) => {
-        const keys = metricsForCategory(cat).filter(k => !favoriteMetrics.includes(k));
-        if (keys.length === 0) return null;
-        const catInfo = CATEGORIES[cat];
-        return (
-          <section key={cat}>
-            <div className="hh-section-label">
-              <span>{catInfo.icon} {catInfo.label}</span>
-              <span style={{ color: "var(--label-tertiary)", textTransform: "none", letterSpacing: 0 }}>{keys.length}</span>
-            </div>
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 stagger-in">
-              {keys.map((key) => (
-                <MetricCard key={key} metricKey={key} data={metrics[key]} />
-              ))}
-            </div>
-          </section>
-        );
-      })}
+      <button
+        onClick={onHide}
+        className="hh-card hh-card-tappable"
+        style={{ textAlign: "center", color: "var(--label-secondary)", fontSize: 13, fontWeight: 500, cursor: "pointer", border: "none", width: "100%" }}
+      >
+        Ascunde analizele avansate
+      </button>
     </div>
   );
 }

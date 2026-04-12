@@ -37,6 +37,7 @@ import { AttentionBanner } from "@/components/AttentionBanner";
 import { ActivityRings } from "@/components/ActivityRings";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { Hypnogram } from "@/components/Hypnogram";
+import { PeriodReport } from "@/components/PeriodReport";
 import { METRIC_CONFIG, CATEGORIES, type MetricCategory } from "@/lib/parser/healthTypes";
 import { generateSmartInsights } from "@/lib/stats/smartInsights";
 import type { DailySummary, SleepNight } from "@/lib/parser/healthTypes";
@@ -333,6 +334,20 @@ function OverviewTab({
         windowDays={periodDates.length || 7}
         periodLabel={periodLabel}
       />
+
+      {/* ─────────────────────────────────────────── */}
+      {/*  PERIOD REPORT — deep analysis for ≥30d    */}
+      {/* ─────────────────────────────────────────── */}
+      {(periodDates.length || 0) >= 30 && (
+        <PeriodReport
+          metrics={metrics}
+          sleepNights={sleepNights}
+          allMetrics={allMetrics}
+          allSleep={allSleep}
+          windowDays={periodDates.length || 30}
+          periodLabel={periodLabel}
+        />
+      )}
 
       {/* ─────────────────────────────────────────── */}
       {/*  3. IN ATENTIE — only actionable alerts     */}

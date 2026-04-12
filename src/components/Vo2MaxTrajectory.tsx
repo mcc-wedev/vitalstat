@@ -229,6 +229,12 @@ export function Vo2MaxTrajectory({ data }: Props) {
           )}
         </p>
       </div>
+
+      {/* Apple Watch estimation context */}
+      <p className="hh-footnote" style={{ color: "var(--label-tertiary)", lineHeight: 1.45, marginTop: 10, fontSize: 11 }}>
+        Valorile VO2 Max sunt estimate de Apple Watch din alergari outdoor si nu reprezinta un test de laborator.
+        Factori care pot supraestima: greutate incorecta in profil, alergari cu panta, primele luni de utilizare.
+      </p>
     </div>
   );
 }

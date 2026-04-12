@@ -99,29 +99,29 @@ export function RecoveryRootCause({ date, metrics, sleepNights }: Props) {
   // Build narrative
   let narrative: string;
   if (Math.abs(totalDelta) < 2) {
-    narrative = `Scorul tau este stabil fata de ieri (${yesterdayTotal} → ${todayTotal}). Nu exista schimbari semnificative — semnalele se compenseaza reciproc.`;
+    narrative = `Stabil fata de ieri (${yesterdayTotal} → ${todayTotal}). Semnalele se compenseaza reciproc.`;
   } else if (totalDelta < 0) {
     const dragPart = topDrag
-      ? `Principalul vinovat: ${topDrag.name} (${topDrag.delta >= 0 ? "+" : ""}${Math.round(topDrag.delta)} puncte la subscorul personal, contribuie cu ${topDrag.weightedDelta.toFixed(1)} la total).`
+      ? `Cauza principala: ${topDrag.name} (${topDrag.delta >= 0 ? "+" : ""}${Math.round(topDrag.delta)} pct, contributie ${topDrag.weightedDelta.toFixed(1)} la total).`
       : "";
     const liftPart = topLift && topLift.weightedDelta > 0.5
       ? ` Compensat partial de ${topLift.name} (+${topLift.weightedDelta.toFixed(1)}).`
       : "";
-    narrative = `Scorul tau a scazut cu ${Math.abs(totalDelta)} puncte fata de ieri. ${dragPart}${liftPart}`;
+    narrative = `−${Math.abs(totalDelta)} puncte fata de ieri. ${dragPart}${liftPart}`;
   } else {
     const liftPart = topLift
-      ? `Principalul contribuitor: ${topLift.name} (${topLift.delta >= 0 ? "+" : ""}${Math.round(topLift.delta)} puncte la subscor, ${topLift.weightedDelta.toFixed(1)} la total).`
+      ? `Factor principal: ${topLift.name} (+${Math.round(topLift.delta)} pct, ${topLift.weightedDelta.toFixed(1)} la total).`
       : "";
     const dragPart = topDrag && topDrag.weightedDelta < -0.5
-      ? ` Redus usor de ${topDrag.name} (${topDrag.weightedDelta.toFixed(1)}).`
+      ? ` Atenuat de ${topDrag.name} (${topDrag.weightedDelta.toFixed(1)}).`
       : "";
-    narrative = `Scorul tau a crescut cu ${totalDelta} puncte fata de ieri. ${liftPart}${dragPart}`;
+    narrative = `+${totalDelta} puncte fata de ieri. ${liftPart}${dragPart}`;
   }
 
   return (
     <div className="hh-card animate-in" style={{ minWidth: 0 }}>
       <div className="hh-section-label" style={{ marginBottom: 8 }}>
-        <span>De ce acest scor azi</span>
+        <span>De ce aceasta energie azi</span>
         <span style={{ color: deltaColor, textTransform: "none", letterSpacing: 0, fontWeight: 600 }}>
           {deltaSign}{totalDelta} vs ieri
         </span>

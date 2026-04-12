@@ -59,7 +59,7 @@ export default function Home() {
 
       <div className="mt-12 sm:mt-16 grid grid-cols-2 sm:grid-cols-4 gap-4 sm:gap-6 max-w-2xl w-full text-center px-2">
         {[
-          { icon: "♥", label: "Scor Recuperare", desc: "Ca WHOOP, gratis" },
+          { icon: "♥", label: "Energie corporala", desc: "Ca Garmin Body Battery, gratis" },
           { icon: "📊", label: "Analiza Trenduri", desc: "Intervale de incredere + anomalii" },
           { icon: "🌙", label: "Analiza Somn", desc: "Stadii, regularitate, jet lag social" },
           { icon: "🔒", label: "100% Privat", desc: "Datele nu parasesc dispozitivul" },

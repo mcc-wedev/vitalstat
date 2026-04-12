@@ -163,8 +163,8 @@ function illnessEarlyWarning(metrics: Record<string, DailySummary[]>, sleep: Sle
       category: "cardio",
       severity: "critical",
       priority: 100,
-      title: "Semnale convergente de efort fiziologic",
-      body: `In ultimele 3 zile, ${reasons.join(" + ")}. Studiul Stanford DETECT (${cite("radin2020")}) a demonstrat ca aceasta combinatie de semnale precede debutul simptomelor infectioase cu 3-5 zile. Recomandare concreta: reduceti efortul fizic cu 50%, cresteti hidratarea la 2.5L/zi, si adaugati 1-2 ore de somn in urmatoarele 2 nopti.`,
+      title: "Semnal de alerta fiziologica",
+      body: `${reasons.join(", ")}. Convergenta a ${alarms} semnale in 3 zile precede frecvent debutul infectios cu 3-5 zile (${cite("radin2020")}). Reduceti efortul cu 50% si dormiti 1-2h in plus.`,
     });
   } else if (alarms === 1) {
     out.push({
@@ -172,8 +172,8 @@ function illnessEarlyWarning(metrics: Record<string, DailySummary[]>, sleep: Sle
       category: "cardio",
       severity: "warning",
       priority: 65,
-      title: "Un semnal fiziologic iesit din tipar",
-      body: `${reasons[0]} — un singur semnal nu e diagnostic, dar merita urmarit maine. Daca apare si un al doilea semnal (RHR, HRV, temperatura sau respiratie), devine semnificativ clinic (${cite("radin2020")}).`,
+      title: "Semnal fiziologic de monitorizat",
+      body: `${reasons[0]}. Un singur semnal nu e diagnostic, dar urmariti evolutia in urmatoarele 48h (${cite("radin2020")}).`,
     });
   }
 
@@ -206,8 +206,8 @@ function overtrainingDetection(metrics: Record<string, DailySummary[]>, sleep: S
       category: "training",
       severity: "critical",
       priority: 95,
-      title: "Pattern de supraantrenament detectat",
-      body: `In ultimele 14 zile: HRV-ul scade (τ=${hrvMk.tau.toFixed(2)}), pulsul de repaus creste (τ=${rhrMk.tau.toFixed(2)}), si volumul de antrenament ramane ridicat (media ${roundRo(mean(ex!.slice(-14).map(d => d.sum)))} min/zi). Aceasta tripleta este semnatura clasica a supraantrenarii functionale (${cite("meeusen2013")}). Solutia: 7-10 zile de deload — reduceti volumul cu 50% si intensitatea cu 30%. Fara deload, recuperarea poate dura luni (${cite("halson2014")}).`,
+      title: "Pattern de supraantrenament",
+      body: `14 zile: HRV ↓ (τ=${hrvMk.tau.toFixed(2)}), RHR ↑ (τ=${rhrMk.tau.toFixed(2)}), volum mediu ${roundRo(mean(ex!.slice(-14).map(d => d.sum)))} min/zi. Tripleta clasica de overreaching functional (${cite("meeusen2013")}). Deload 7-10 zile: volum −50%, intensitate −30% (${cite("halson2014")}).`,
     });
   } else if (hrvDeclining && rhrRising) {
     out.push({
@@ -215,8 +215,8 @@ function overtrainingDetection(metrics: Record<string, DailySummary[]>, sleep: S
       category: "training",
       severity: "warning",
       priority: 70,
-      title: "HRV scade si pulsul de repaus creste simultan",
-      body: `Combinatia de HRV in scadere (τ=${hrvMk.tau.toFixed(2)}) si RHR in crestere (τ=${rhrMk.tau.toFixed(2)}) pe 14 zile sugereaza ca sistemul tau autonom este sub presiune. Cauze posibile: stres cronic, deficit de somn acumulat, sau volum de antrenament prea mare. Monitorizati si adaugati 1 zi de odihna completa pe saptamana (${cite("meeusen2013")}).`,
+      title: "HRV ↓ + RHR ↑ simultan pe 14 zile",
+      body: `HRV τ=${hrvMk.tau.toFixed(2)}, RHR τ=${rhrMk.tau.toFixed(2)}. Sistem autonom sub presiune — stres, somn insuficient sau volum excesiv. Adaugati 1 zi de odihna completa/saptamana (${cite("meeusen2013")}).`,
     });
   }
 
@@ -250,8 +250,8 @@ function personalNorms(
           category: "cardio",
           severity: "positive",
           priority: 35,
-          title: `VO2 Max de ${v.toFixed(1)} — top ${Math.round(100 - pct)}%`,
-          body: `La ${v.toFixed(1)} mL/kg/min, te plaseaza in percentila ${Math.round(pct)} pentru ${sexRo} de ${profile.age} ani (${cite("acsm2021")}). VO2 Max este cel mai puternic predictor singular al mortalitatii de orice cauza — fiecare MET (3.5 mL/kg/min) in plus reduce riscul cardiovascular cu ~13% (${cite("kodama2009")}). La nivelul tau, ai un avantaj semnificativ de longevitate fata de media populatiei.`,
+          title: `VO2 Max ${v.toFixed(1)} — percentila ${Math.round(pct)}`,
+          body: `Top ${Math.round(100 - pct)}% pentru ${sexRo} ${profile.age} ani (${cite("acsm2021")}). Fiecare +1 MET reduce riscul cardiovascular cu 13% (${cite("kodama2009")}).`,
         });
       } else if (pct < 30) {
         out.push({
@@ -259,8 +259,8 @@ function personalNorms(
           category: "cardio",
           severity: "warning",
           priority: 72,
-          title: `VO2 Max sub media cohortei tale`,
-          body: `${v.toFixed(1)} mL/kg/min te plaseaza la percentila ${Math.round(pct)} pentru ${sexRo} de ${profile.age} ani (${cite("acsm2021")}). Vestea buna: VO2 Max raspunde rapid la antrenament. Protocolul cu cel mai mare impact stiintific: 3 sesiuni/saptamana de 30-45 min in zona 2 (65-75% HR max) + 1 sesiune de intervale 4x4 min la 90% HR max. Asteptati prima crestere masurabile in 6-8 saptamani.`,
+          title: `VO2 Max ${v.toFixed(1)} — percentila ${Math.round(pct)}`,
+          body: `Sub media pentru ${sexRo} ${profile.age} ani (${cite("acsm2021")}). Protocol recomandat: 3×/sapt zona 2 (30-45 min) + 1× intervale 4×4 min la 90% HR max. Prima crestere masurabile in 6-8 saptamani.`,
         });
       }
     }
@@ -276,8 +276,8 @@ function personalNorms(
         category: "cardio",
         severity: "positive",
         priority: 25,
-        title: `Puls repaus de ${Math.round(rhrVal)} bpm — nivel de atlet`,
-        body: `Percentila ${Math.round(pct)} pentru ${sexRo} de ${profile.age} ani (${cite("nauman2011")}). Un puls sub 60 bpm reflecta volum sistolic crescut si tonus parasimpatic puternic. In studiul HUNT (n=50,000), acest nivel a fost asociat cu 21% mai putin risc cardiovascular comparativ cu grupa 70-79 bpm.`,
+        title: `RHR ${Math.round(rhrVal)} bpm — percentila ${Math.round(pct)}`,
+        body: `Nivel atletic pentru ${sexRo} ${profile.age} ani. Sub 60 bpm = volum sistolic crescut, tonus parasimpatic puternic. Asociat cu −21% risc cardiovascular vs 70-79 bpm (${cite("nauman2011")}).`,
       });
     }
   }
@@ -293,8 +293,8 @@ function personalNorms(
           category: "cardio",
           severity: "warning",
           priority: 60,
-          title: `HRV-ul tau e in sfertul inferior pentru varsta ta`,
-          body: `Media ta de ${roundRo(hrvVal)} ms te plaseaza la percentila ${Math.round(pct)} pentru ${sexRo} de ${profile.age} ani (${cite("nunan2010")}). Asta nu e o sentinta — e o oportunitate. Cele 3 interventii cu cel mai mare impact pe HRV: (1) regularitate bedtime ±30 min, (2) reducerea alcoolului seara, (3) volum aerob in zona 2 in loc de HIIT. In 8-12 saptamani, cei cu HRV initial scazut au cel mai mult de castigat (${cite("buchheit2014")}).`,
+          title: `HRV ${roundRo(hrvVal)} ms — percentila ${Math.round(pct)}`,
+          body: `Sfertul inferior pentru ${sexRo} ${profile.age} ani (${cite("nunan2010")}). Interventii cu impact maxim: bedtime constant ±30 min, reducere alcool seara, zona 2 aerob. Raspuns HRV in 8-12 saptamani (${cite("buchheit2014")}).`,
         });
       }
     }
@@ -333,7 +333,7 @@ function sleepDebtNarrative(allSleep: SleepNight[], periodSleep: SleepNight[], m
       const highAvg = mean(highSleepHrv);
       const pctDiff = ((lowAvg - highAvg) / highAvg) * 100;
       if (pctDiff < -5) {
-        crossMetricNote = ` Concret pe datele tale: HRV-ul tau e cu ${Math.abs(pctDiff).toFixed(0)}% mai mic in diminetile dupa nopti sub 6.5h vs. peste 7h.`;
+        crossMetricNote = ` HRV −${Math.abs(pctDiff).toFixed(0)}% dupa nopti <6.5h vs >7h pe datele tale.`;
       }
     }
   }
@@ -344,8 +344,8 @@ function sleepDebtNarrative(allSleep: SleepNight[], periodSleep: SleepNight[], m
       category: "sleep",
       severity: "warning",
       priority: 75,
-      title: `Media de somn: ${avg.toFixed(1)}h — deficit cronic`,
-      body: `In ultimele 14 nopti dormi in medie ${avg.toFixed(1)}h, cu ${(7.5 - avg).toFixed(1)}h sub recomandarea de 7-9h (${cite("nsf2015")}). Cercetarea de la UPenn (${cite("vanDongen2003")}) a demonstrat ca dupa 14 zile la 6h/noapte, performanta cognitiva scade la nivelul a 2 nopti fara somn — dar subiectii nu constientizeaza degradarea.${crossMetricNote}`,
+      title: `Somn ${avg.toFixed(1)}h/noapte — deficit cronic`,
+      body: `Media 14 nopti: ${avg.toFixed(1)}h, cu ${(7.5 - avg).toFixed(1)}h sub zona optima 7-9h (${cite("nsf2015")}). 14 zile la 6h/noapte = performanta cognitiva echivalenta cu 2 nopti fara somn, fara constientizare subiectiva (${cite("vanDongen2003")}).${crossMetricNote}`,
     });
   } else if (avg >= 7.5 && avg <= 8.5) {
     out.push({
@@ -353,8 +353,8 @@ function sleepDebtNarrative(allSleep: SleepNight[], periodSleep: SleepNight[], m
       category: "sleep",
       severity: "positive",
       priority: 12,
-      title: `Durata de somn optima: ${avg.toFixed(1)}h medie`,
-      body: `Esti in zona optima de 7-9h recomandata de ${cite("nsf2015")}. Consistenta este la fel de importanta ca durata — un bedtime variabil cu mai mult de ±60 min creste riscul cardiovascular independent de durata (${cite("wittmann2006")}).`,
+      title: `Somn ${avg.toFixed(1)}h — zona optima`,
+      body: `In intervalul 7-9h recomandat (${cite("nsf2015")}). Mentineti si consistenta bedtime-ului — variatie >60 min creste riscul cardiovascular independent de durata (${cite("wittmann2006")}).`,
     });
   }
 
@@ -393,8 +393,8 @@ function trendNarrative(metrics: Record<string, DailySummary[]>, sleep: SleepNig
         category: "cardio",
         severity: "positive",
         priority: 40,
-        title: `Puls repaus in scadere: ${Math.round(first)} → ${Math.round(last)} bpm`,
-        body: `O scadere de ${Math.abs(delta).toFixed(0)} bpm in aceasta perioada (Mann-Kendall τ=${mk.tau.toFixed(2)}, p=${mk.pValue.toFixed(3)}). Rata estimata: ${slopeMonth.toFixed(1)} bpm/luna. O scadere a pulsului reflecta de obicei adaptare la volum aerob sau imbunatatirea somnului. In studiul HUNT (${cite("nauman2011")}), o reducere de 5 bpm a fost asociata cu 12% mai putin risc cardiovascular.`,
+        title: `RHR ↓ ${Math.round(first)} → ${Math.round(last)} bpm`,
+        body: `−${Math.abs(delta).toFixed(0)} bpm (τ=${mk.tau.toFixed(2)}, p=${mk.pValue.toFixed(3)}), rata ${slopeMonth.toFixed(1)} bpm/luna. Adaptare aeroba sau somn imbunatatit. −5 bpm = −12% risc cardiovascular (${cite("nauman2011")}).`,
       });
     } else if (c.key === "restingHeartRate" && !improving) {
       out.push({
@@ -402,8 +402,8 @@ function trendNarrative(metrics: Record<string, DailySummary[]>, sleep: SleepNig
         category: "cardio",
         severity: "warning",
         priority: 55,
-        title: `Puls repaus in crestere: ${Math.round(first)} → ${Math.round(last)} bpm`,
-        body: `Crestere de ${delta.toFixed(0)} bpm (τ=${mk.tau.toFixed(2)}, p=${mk.pValue.toFixed(3)}). Cauze frecvente: stres cronic, deficit de somn acumulat, deshidratare, sau volum crescut de antrenament fara recuperare adecvata. Daca tendinta persista 2+ saptamani, prioritizeaza odihna (${cite("palatini2006")}).`,
+        title: `RHR ↑ ${Math.round(first)} → ${Math.round(last)} bpm`,
+        body: `+${delta.toFixed(0)} bpm (τ=${mk.tau.toFixed(2)}, p=${mk.pValue.toFixed(3)}). Cauze: stres, deficit somn, deshidratare, volum fara recuperare. Daca persista >2 sapt, prioritizati odihna (${cite("palatini2006")}).`,
       });
     } else if (c.key === "hrv") {
       out.push({
@@ -411,10 +411,10 @@ function trendNarrative(metrics: Record<string, DailySummary[]>, sleep: SleepNig
         category: "cardio",
         severity: improving ? "positive" : "warning",
         priority: improving ? 35 : 60,
-        title: `HRV ${improving ? "in crestere" : "in scadere"}: ${roundRo(first)} → ${roundRo(last)} ms`,
+        title: `HRV ${improving ? "↑" : "↓"} ${roundRo(first)} → ${roundRo(last)} ms`,
         body: improving
-          ? `Tendinta ascendenta semnificativa (τ=${mk.tau.toFixed(2)}, p=${mk.pValue.toFixed(3)}). HRV-ul in crestere indica adaptare parasimpatica — sistemul tau nervos autonom devine mai eficient la recuperare. Tipic pentru adaptare la zona 2, reducere stres, sau imbunatatirea calitatii somnului (${cite("buchheit2014")}).`
-          : `Tendinta descendenta semnificativa (τ=${mk.tau.toFixed(2)}, p=${mk.pValue.toFixed(3)}). HRV in scadere reflecta dominanta simpatica — stres cronic, somn insuficient, alcool, sau supraantrenament. Daca trendul CV pe 7 zile depaseste 10%, este un indicator mai puternic de overreaching decat valoarea absoluta (${cite("plews2013")}).`,
+          ? `Tendinta semnificativa (τ=${mk.tau.toFixed(2)}, p=${mk.pValue.toFixed(3)}). Adaptare parasimpatica — recuperare autonoma mai eficienta. Tipic: zona 2, somn imbunatatit, stres redus (${cite("buchheit2014")}).`
+          : `Tendinta semnificativa (τ=${mk.tau.toFixed(2)}, p=${mk.pValue.toFixed(3)}). Dominanta simpatica — stres, somn insuficient, alcool sau supraantrenament. CV >10% pe 7 zile = marker mai puternic de overreaching (${cite("plews2013")}).`,
       });
     } else if (c.key === "stepCount") {
       out.push({
@@ -422,10 +422,10 @@ function trendNarrative(metrics: Record<string, DailySummary[]>, sleep: SleepNig
         category: "activity",
         severity: improving ? "positive" : "info",
         priority: improving ? 20 : 30,
-        title: `Pasi zilnici ${improving ? "in crestere" : "in scadere"}`,
+        title: `Pasi ${improving ? "↑" : "↓"} ${roundRo(first, 0)} → ${roundRo(last, 0)}/zi`,
         body: improving
-          ? `Tendinta pozitiva (τ=${mk.tau.toFixed(2)}). Cresterea volumului de mers are beneficii disproportionate pe mortalitate intre 4,000-8,000 pasi/zi — dupa 10,000, curba se aplatizeaza (${cite("paluch2022")}).`
-          : `Tendinta de scadere (τ=${mk.tau.toFixed(2)}). O reducere a pasilor sub 5,000/zi este asociata cu risc metabolic crescut. Cel mai simplu fix: o plimbare de 15 min dupa pranz adauga ~1,500 pasi si imbunatateste sensibilitatea la insulina (${cite("paluch2022")}).`,
+          ? `Trend pozitiv (τ=${mk.tau.toFixed(2)}). Beneficiu maxim pe mortalitate: 4,000-8,000 pasi/zi, platou dupa 10,000 (${cite("paluch2022")}).`
+          : `Trend negativ (τ=${mk.tau.toFixed(2)}). Sub 5,000/zi = risc metabolic crescut. 15 min mers dupa pranz = +1,500 pasi + insulino-sensibilitate (${cite("paluch2022")}).`,
       });
     }
   }
@@ -447,8 +447,8 @@ function fitnessFormNarrative(metrics: Record<string, DailySummary[]>): SmartIns
       category: "training",
       severity: "critical",
       priority: 88,
-      title: "Forma negativa — oboseala depaseste fitness-ul",
-      body: `Forma ta (Fitness − Fatigue) este ${last.form.toFixed(0)}, cu fitness ${last.fitness.toFixed(0)} si oboseala ${last.fatigue.toFixed(0)}. Modelul Banister (${cite("banister1975")}) indica ca acumulezi oboseala mai rapid decat te recuperezi. Protocolul standard: reduceti volumul cu 40-50% si intensitatea cu 30% pentru 7-10 zile. Supercompensarea (peak de performanta) apare de obicei la 10-14 zile dupa inceputul deload-ului.`,
+      title: "Forma negativa — oboseala > fitness",
+      body: `Form=${last.form.toFixed(0)} (fitness ${last.fitness.toFixed(0)}, fatigue ${last.fatigue.toFixed(0)}). Acumulare oboseala peste capacitate de recuperare (${cite("banister1975")}). Deload 7-10 zile: −50% volum, −30% intensitate. Supercompensare la 10-14 zile.`,
     });
   } else if (state.tone === "rested") {
     out.push({
@@ -456,8 +456,8 @@ function fitnessFormNarrative(metrics: Record<string, DailySummary[]>): SmartIns
       category: "training",
       severity: "positive",
       priority: 30,
-      title: "Esti in forma de varf — fereastra de performanta",
-      body: `Forma +${last.form.toFixed(0)}: odihnit, cu fitness-ul inca ridicat (${last.fitness.toFixed(0)}). Aceasta este fereastra optima pentru competitie sau testare. Dureaza de obicei 7-14 zile (${cite("banister1975")}).`,
+      title: "Forma de varf — fereastra de performanta",
+      body: `Form=+${last.form.toFixed(0)}, fitness ${last.fitness.toFixed(0)}. Fereastra optima pentru competitie/testare, durata tipica 7-14 zile (${cite("banister1975")}).`,
     });
   }
 
@@ -492,8 +492,8 @@ function sleepHrvCorrelation(metrics: Record<string, DailySummary[]>, sleep: Sle
       category: "sleep",
       severity: "info",
       priority: 35,
-      title: `Somnul si HRV-ul tau sunt corelate (r=${r.toFixed(2)})`,
-      body: `Pe datele tale din ultimele 90 zile, HRV-ul de dimineata ${direction} proportional cu durata somnului din noaptea precedenta (corelatie Pearson r=${r.toFixed(2)}, ${pairs.length} perechi). Practic, fiecare ora in plus de somn se traduce in ~${Math.abs((r * std(ys)) / std(xs)).toFixed(0)} ms mai mult HRV a doua zi. Somnul este parghia numarul 1 pentru recuperarea autonoma (${cite("walker2017")}).`,
+      title: `Somn → HRV: r=${r.toFixed(2)}`,
+      body: `Corelatie Pearson pe ${pairs.length} perechi (90 zile). +1h somn ≈ ${r > 0 ? "+" : ""}${Math.round((r * std(ys)) / std(xs))} ms HRV a doua zi. Somnul ramane parghia #1 pentru recuperare autonoma (${cite("walker2017")}).`,
     });
   }
 
@@ -514,8 +514,8 @@ function volatilityNarrative(metrics: Record<string, DailySummary[]>): SmartInsi
       category: "cardio",
       severity: "warning",
       priority: 50,
-      title: `HRV foarte instabil (CV ${cv.toFixed(0)}%)`,
-      body: `Coeficientul de variatie este ${cv.toFixed(0)}% — mult peste pragul de 14%. Asta inseamna ca de la o zi la alta HRV-ul variaza enorm, ceea ce e un marker de overreaching mai puternic decat HRV-ul absolut (${cite("plews2013")}). Cauze tipice: variatii mari in ora de culcare, alcool, caldura, stres acut. Primul pas: stabilizati bedtime-ul (±30 min) timp de 7 zile.`,
+      title: `HRV instabil — CV ${cv.toFixed(0)}%`,
+      body: `Peste pragul de 14%. Variabilitate zi-de-zi ridicata = marker de overreaching mai puternic decat media absoluta (${cite("plews2013")}). Stabilizati bedtime ±30 min, 7 zile.`,
     });
   } else if (cv < 5) {
     out.push({
@@ -523,8 +523,8 @@ function volatilityNarrative(metrics: Record<string, DailySummary[]>): SmartInsi
       category: "cardio",
       severity: "positive",
       priority: 15,
-      title: "HRV ultra-stabil — homeostazie excelenta",
-      body: `Variabilitatea zilnica este doar ${cv.toFixed(1)}% (CV). Corpul tau opereaza intr-un echilibru fiziologic remarcabil de constant — tonus autonom sanatos, somn regulat, stres controlat.`,
+      title: `HRV stabil — CV ${cv.toFixed(1)}%`,
+      body: `Variabilitate zilnica sub 5%. Echilibru autonom excelent: somn regulat, stres controlat.`,
     });
   }
   return out;
@@ -552,8 +552,8 @@ function dayOfWeekNarrative(metrics: Record<string, DailySummary[]>, sleep: Slee
       category: "cardio",
       severity: "info",
       priority: 22,
-      title: `Fingerprint de stres saptamanal detectat`,
-      body: `HRV-ul tau urmeaza un tipar saptamanal clar: cel mai bun in ${days[best.dow]} (+${best.deviation.toFixed(0)} ms), cel mai slab in ${days[worst.dow]} (${worst.deviation.toFixed(0)} ms). Diferenta de ${Math.abs(best.deviation - worst.deviation).toFixed(0)} ms intre cele doua zile sugereaza un factor consistent — program social de weekend, antrenamente grele intr-o anumita zi, sau stres profesional recurent.`,
+      title: `Tipar saptamanal HRV`,
+      body: `Maxim: ${days[best.dow]} (+${best.deviation.toFixed(0)} ms), minim: ${days[worst.dow]} (${worst.deviation.toFixed(0)} ms). Diferenta de ${Math.abs(best.deviation - worst.deviation).toFixed(0)} ms — factor recurent (antrenament, stres profesional, program social).`,
     });
   }
   return out;
@@ -570,8 +570,8 @@ function weeklyCycleNarrative(metrics: Record<string, DailySummary[]>): SmartIns
       category: "activity",
       severity: "info",
       priority: 15,
-      title: "Ritm saptamanal structurat detectat",
-      body: `Autocorelatia la lag 7 zile: ${(cycle.strength * 100).toFixed(0)}% — zilele tale active si de odihna se repeta consistent. Tipic pentru un program de antrenament structurat sau un ritm profesional regulat.`,
+      title: "Ciclu saptamanal detectat",
+      body: `Autocorelatia lag-7: ${(cycle.strength * 100).toFixed(0)}%. Zile active/odihna se repeta consistent — program structurat.`,
     });
   }
   return out;
@@ -600,8 +600,8 @@ function vo2Trajectory(metrics: Record<string, DailySummary[]>, allMetrics: Reco
       category: "cardio",
       severity: "positive",
       priority: 42,
-      title: `VO2 Max in crestere: +${change.toFixed(1)} mL/kg/min`,
-      body: `Apple iti estimeaza VO2 Max in crestere pe aceasta perioada. Fiecare 3.5 mL/kg/min castigat (1 MET) reduce riscul de mortalitate cardiovasculara cu ~13% (${cite("kodama2009")}). Continua rutina actuala.`,
+      title: `VO2 Max ↑ +${change.toFixed(1)} mL/kg/min`,
+      body: `Trend ascendent semnificativ. +1 MET (3.5 mL/kg/min) = −13% mortalitate cardiovasculara (${cite("kodama2009")}).`,
     });
   } else {
     out.push({
@@ -609,8 +609,8 @@ function vo2Trajectory(metrics: Record<string, DailySummary[]>, allMetrics: Reco
       category: "cardio",
       severity: "warning",
       priority: 55,
-      title: `VO2 Max in scadere: ${change.toFixed(1)} mL/kg/min`,
-      body: `Declinul natural al VO2 Max este ~1 mL/kg/min pe an dupa 25 ani. Daca scaderea ta este peste acest ritm, nu e imbatranire ci decondtionare. Cel mai puternic motor de imbunatatire: zona 2 aerob (65-75% HR max) 3x/saptamana cate 30-45 min + 1 sesiune de intervale. Raspunsul incepe in 6-8 saptamani (${cite("acsm2021")}).`,
+      title: `VO2 Max ↓ ${change.toFixed(1)} mL/kg/min`,
+      body: `Declin natural: ~1 mL/kg/min/an dupa 25 ani. Peste acest ritm = deconditonare, nu imbatranire. Zona 2 aerob 3×/sapt + 1× intervale, raspuns in 6-8 sapt (${cite("acsm2021")}).`,
     });
   }
   return out;
@@ -634,8 +634,8 @@ function agingPaceNarrative(metrics: Record<string, DailySummary[]>, profileOver
       category: "cardio",
       severity: "positive",
       priority: 40,
-      title: "Imbatranesti mai incet decat media populatiei",
-      body: `HRV-ul tau creste semnificativ pe perioada lunga (τ=${mk.tau.toFixed(2)}, p=${mk.pValue.toFixed(3)}). In mod normal, HRV scade cu ~0.5 ms/an dupa 25 ani (${cite("umetani1998")}). Tu mergi in directia opusa — adaptare autonoma pozitiva, probabil datorita antrenamentului aerob sau reducerii stresului cronic.`,
+      title: "Ritm de imbatranire autonoma incetinit",
+      body: `HRV ↑ pe termen lung (τ=${mk.tau.toFixed(2)}, p=${mk.pValue.toFixed(3)}). Normal: −0.5 ms/an dupa 25 ani (${cite("umetani1998")}). Directie opusa = adaptare autonoma pozitiva.`,
     });
   } else {
     out.push({
@@ -644,7 +644,7 @@ function agingPaceNarrative(metrics: Record<string, DailySummary[]>, profileOver
       severity: "warning",
       priority: 60,
       title: "Ritm de imbatranire autonoma accelerat",
-      body: `HRV-ul tau scade semnificativ pe perioada lunga (τ=${mk.tau.toFixed(2)}, p=${mk.pValue.toFixed(3)}) — peste ritmul natural de ~0.5 ms/an (${cite("umetani1998")}). Cauze comune la acest nivel de accelerare: stres cronic prelungit, deficit de somn persistent, alcool regulat, sau sedentarism. Interventie prioritara: somnul (cel mai mare ROI pe HRV) si zona 2 aerob.`,
+      body: `HRV ↓ pe termen lung (τ=${mk.tau.toFixed(2)}, p=${mk.pValue.toFixed(3)}), peste ritmul natural de −0.5 ms/an (${cite("umetani1998")}). Prioritati: somn (ROI maxim pe HRV) + zona 2 aerob.`,
     });
   }
   return out;
@@ -672,8 +672,8 @@ function yearOverYearNarrative(metrics: Record<string, DailySummary[]>): SmartIn
     priority: delta > 0 ? 35 : 50,
     title: `VO2 Max ${delta > 0 ? "+" : ""}${delta.toFixed(1)} fata de acum 1 an`,
     body: delta > 0
-      ? `De la ${p.toFixed(1)} la ${r.toFixed(1)} mL/kg/min. O crestere de ${delta.toFixed(1)} mL/kg/min la un adult este semnificativa — reflecta imbunatatire reala a capacitatii aerobe, nu doar variatie de masurare (${cite("kodama2009")}).`
-      : `De la ${p.toFixed(1)} la ${r.toFixed(1)} mL/kg/min. Declinul natural este ~1 mL/kg/min pe an dupa 25 ani. ${Math.abs(delta) > 2 ? "Scaderea ta este peste acest ritm, ceea ce indica decondtionare activa." : "Esti in ritmul normal de imbatranire."} (${cite("acsm2021")})`,
+      ? `${p.toFixed(1)} → ${r.toFixed(1)} mL/kg/min. +${delta.toFixed(1)} = imbunatatire reala a capacitatii aerobe (${cite("kodama2009")}).`
+      : `${p.toFixed(1)} → ${r.toFixed(1)} mL/kg/min. ${Math.abs(delta) > 2 ? "Peste ritmul natural de −1/an = deconditonare activa." : "In ritmul normal de imbatranire."} (${cite("acsm2021")})`,
   });
   return out;
 }

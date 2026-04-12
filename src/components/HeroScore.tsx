@@ -17,11 +17,11 @@ interface HeroScoreProps {
 }
 
 function getScoreLabel(score: number): string {
-  if (score >= 80) return "Excelent";
-  if (score >= 60) return "Bun";
-  if (score >= 40) return "Mediu";
-  if (score >= 20) return "Slab";
-  return "Critic";
+  if (score >= 80) return "Energie ridicata";
+  if (score >= 60) return "Energie buna";
+  if (score >= 40) return "Energie moderata";
+  if (score >= 20) return "Energie scazuta";
+  return "Energie critica";
 }
 
 function getScoreColor(score: number): string {
@@ -131,7 +131,7 @@ export function HeroScore({
     return (
       <div className="hh-card animate-in">
         <p className="hh-footnote" style={{ color: "var(--label-secondary)" }}>
-          Recuperare — date insuficiente (minim 14 zile).
+          Energie corporala — date insuficiente (minim 14 zile).
         </p>
       </div>
     );
@@ -178,7 +178,7 @@ export function HeroScore({
           <p className="hh-footnote" style={{ color: "var(--label-secondary)", marginBottom: 8 }}>
             {isAverage && periodLabel
               ? `Medie ${periodLabel.toLowerCase()}`
-              : "Recuperare"}
+              : "Energie corporala"}
             {confidence !== "high" && (
               <span style={{ marginLeft: 6, color: confidence === "medium" ? "#FF9500" : "#FF3B30" }}>
                 · {confidence === "medium" ? "aprox." : "limitat"}

@@ -10,7 +10,7 @@ interface HealthState {
   metrics: Record<string, DailySummary[]>;
   sleepNights: SleepNight[];
   meta: DataMeta | null;
-  activeTab: MetricCategory | "overview";
+  activeTab: MetricCategory | "overview" | "browse" | "profile";
   datePreset: DatePreset;
   customRange: { start: string; end: string } | null;
 
@@ -18,7 +18,7 @@ interface HealthState {
   setParseProgress: (pct: number) => void;
   setData: (metrics: Record<string, DailySummary[]>, sleepNights: SleepNight[], meta: DataMeta) => void;
   clearData: () => void;
-  setActiveTab: (tab: MetricCategory | "overview") => void;
+  setActiveTab: (tab: MetricCategory | "overview" | "browse" | "profile") => void;
   setDatePreset: (preset: DatePreset) => void;
   setCustomRange: (range: { start: string; end: string } | null) => void;
 }

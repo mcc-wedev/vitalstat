@@ -41,10 +41,10 @@
   --warning: #FF9500;             /* systemOrange */
   --danger:  #FF3B30;             /* systemRed */
 
-  /* Radii — iOS standard */
-  --radius-sm: 10px;
-  --radius-md: 14px;
-  --radius-lg: 16px;
+  /* Radii — iOS insetGrouped (12px cards) */
+  --radius-sm: 8px;
+  --radius-md: 10px;
+  --radius-lg: 12px;
 
   /* Legacy aliases (kept to avoid breaking existing classNames) */
   --foreground: var(--label-primary);
@@ -232,15 +232,20 @@ body {
 /* ═══════════════════════════════════════════════════════════ */
 
 .hh-section-label {
-  font-size: 13px;
-  font-weight: 400;
-  color: var(--label-secondary);
-  text-transform: uppercase;
-  letter-spacing: 0.045em;
-  padding: 0 4px 8px 4px;
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--label-primary);
+  text-transform: none;
+  letter-spacing: 0.011em;
+  padding: 0 0 10px 0;
   display: flex;
-  align-items: center;
+  align-items: baseline;
   justify-content: space-between;
+}
+.hh-section-label > span:last-child:not(:first-child) {
+  font-size: 15px;
+  font-weight: 400;
+  color: var(--accent);
 }
 
 .hh-section-title {
@@ -267,9 +272,57 @@ body {
 }
 
 /* ═══════════════════════════════════════════════════════════ */
-/*  PILLS (date range, actions)                                 */
+/*  INSET GROUPED CARDS (iOS Settings-style stacked cards)      */
 /* ═══════════════════════════════════════════════════════════ */
 
+.hh-inset-group {
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  background: var(--surface-1);
+}
+.hh-inset-group > * + * {
+  border-top: 0.5px solid var(--separator);
+}
+.hh-inset-group > * {
+  padding: 12px 16px;
+}
+
+/* ═══════════════════════════════════════════════════════════ */
+/*  SEGMENT CONTROL (iOS style — replaces pills)                */
+/* ═══════════════════════════════════════════════════════════ */
+
+.segment-control {
+  display: flex;
+  background: var(--surface-2);
+  border-radius: 8px;
+  padding: 2px;
+  gap: 0;
+}
+.segment-item {
+  flex: 1;
+  padding: 6px 0;
+  border-radius: 7px;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
+  cursor: pointer;
+  border: none;
+  background: none;
+  color: var(--label-secondary);
+  transition: background 200ms ease, color 200ms ease, box-shadow 200ms ease;
+  -webkit-tap-highlight-color: transparent;
+}
+.segment-item:active { opacity: 0.7; }
+.segment-active {
+  background: var(--surface-1);
+  color: var(--label-primary);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.12), 0 0 1px rgba(0,0,0,0.08);
+}
+[data-theme="light"] .segment-active {
+  box-shadow: 0 1px 4px rgba(0,0,0,0.08), 0 0 1px rgba(0,0,0,0.04);
+}
+
+/* Legacy pill — kept for backward compat but visually mapped to segment */
 .pill {
   padding: 7px 14px;
   border-radius: 999px;

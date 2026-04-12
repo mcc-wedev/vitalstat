@@ -34,18 +34,26 @@ import { CircadianMap } from "@/components/CircadianMap";
 import { ProgressOverview } from "@/components/ProgressOverview";
 import { AdaptiveAnalysis } from "@/components/AdaptiveAnalysis";
 import { AttentionBanner } from "@/components/AttentionBanner";
+import { ActivityRings } from "@/components/ActivityRings";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { Hypnogram } from "@/components/Hypnogram";
 import { METRIC_CONFIG, CATEGORIES, type MetricCategory } from "@/lib/parser/healthTypes";
-import { generateInsights } from "@/lib/stats/insights";
+import { generateSmartInsights } from "@/lib/stats/smartInsights";
 import type { DailySummary, SleepNight } from "@/lib/parser/healthTypes";
 import { Onboarding } from "@/components/Onboarding";
 import { ProfileSetup } from "@/components/ProfileSetup";
 import { clearData, exportAllData } from "@/lib/db/indexedDB";
 
-const TABS: { key: MetricCategory | "overview"; label: string; icon: string }[] = [
+// Bottom nav — Apple Health 3-tab pattern: Summary, Browse, Profile
+const BOTTOM_TABS: { key: string; label: string; icon: string }[] = [
   { key: "overview", label: "Sumar", icon: "📊" },
-  { key: "cardio", label: "Cardio", icon: "❤️" },
+  { key: "browse", label: "Categorii", icon: "🔍" },
+  { key: "profile", label: "Profil", icon: "👤" },
+];
+
+// Category tabs — used inside Browse mode
+const CATEGORY_TABS: { key: MetricCategory; label: string; icon: string }[] = [
+  { key: "cardio", label: "Cardiovascular", icon: "❤️" },
   { key: "sleep", label: "Somn", icon: "🌙" },
   { key: "activity", label: "Activitate", icon: "🏃" },
   { key: "mobility", label: "Mobilitate", icon: "🦿" },
@@ -118,17 +126,14 @@ export default function Dashboard() {
       <Onboarding />
       <ProfileSetup shouldShow={hasData} />
 
-      {/* ═══ HEADER — Apple style ═══ */}
-      <header className="sticky top-0 z-50 backdrop-blur-xl" style={{ borderBottom: "1px solid rgba(84,84,88,0.6)", background: "rgba(0,0,0,0.88)" }}>
-        <div className="max-w-6xl mx-auto px-3 sm:px-5">
+      {/* ═══ HEADER — Apple Large Title ═══ */}
+      <header className="sticky top-0 z-50 backdrop-blur-xl" style={{ borderBottom: "0.5px solid var(--separator)", background: "var(--overlay-header)" }}>
+        <div className="max-w-6xl mx-auto px-4 sm:px-5">
           {/* Top row */}
-          <div className="flex items-center justify-between py-2.5">
-            <div>
-              <h1 className="text-[17px] font-bold text-white">VitalStat</h1>
-              <p className="text-[11px] hidden sm:block" style={{ color: "rgba(235,235,245,0.3)" }}>
-                {meta.totalRecords.toLocaleString()} inregistrari
-              </p>
-            </div>
+          <div className="flex items-center justify-between py-3">
+            <h1 className="hh-large-title" style={{ color: "var(--label-primary)", fontWeight: 500 }}>
+              Sumar
+            </h1>
             <div className="flex items-center gap-1">
               <ThemeToggle />
               {/* Force Refresh — unregisters SW, clears all caches, reloads */}
@@ -178,38 +183,32 @@ export default function Dashboard() {
         </div>
       </header>
 
-      {/* ═══ DESKTOP TABS (hidden on mobile) ═══ */}
-      {!isDailyView && (
-        <nav className="desktop-tabs" style={{ borderBottom: "1px solid rgba(84,84,88,0.6)", background: "rgba(0,0,0,0.6)" }}>
-          <div className="max-w-6xl mx-auto px-3 sm:px-5 tab-scroll flex">
-            {TABS.map((tab) => (
-              <button
-                key={tab.key}
-                onClick={() => setActiveTab(tab.key)}
-                className={`tab-btn ${activeTab === tab.key ? "tab-active" : ""}`}
-              >
-                <span className="mr-1.5 text-xs">{tab.icon}</span>
-                {tab.label}
-              </button>
-            ))}
-          </div>
-        </nav>
-      )}
-
       {/* ═══ CONTENT ═══ */}
       {isDailyView && dailyDate ? (
-        <main className="flex-1 max-w-6xl mx-auto w-full px-3 sm:px-5 py-4 sm:py-6 overflow-x-hidden">
+        <main className="flex-1 max-w-6xl mx-auto w-full px-4 sm:px-5 py-4 sm:py-6 overflow-x-hidden">
           <DailyReport date={dailyDate} metrics={metrics} sleepNights={sleepNights} />
         </main>
       ) : (
-        <main className="flex-1 max-w-6xl mx-auto w-full px-3 sm:px-5 py-4 sm:py-6 overflow-x-hidden">
+        <main className="flex-1 max-w-6xl mx-auto w-full px-4 sm:px-5 py-4 sm:py-6 overflow-x-hidden">
           {activeTab === "overview" && (
             <OverviewTab metrics={filteredMetrics} sleepNights={filteredSleep} allMetrics={metrics} allSleep={sleepNights} metricsForCategory={metricsForCategory} datePreset={datePreset} />
+          )}
+          {activeTab === "browse" && (
+            <BrowseTab
+              metrics={filteredMetrics}
+              sleepNights={filteredSleep}
+              allMetrics={metrics}
+              allSleep={sleepNights}
+              metricsForCategory={metricsForCategory}
+            />
+          )}
+          {activeTab === "profile" && (
+            <ProfileTab />
           )}
           {activeTab === "sleep" && (
             <SleepTab metrics={filteredMetrics} sleepNights={filteredSleep} allMetrics={metrics} allSleep={sleepNights} />
           )}
-          {activeTab !== "overview" && activeTab !== "sleep" && (
+          {activeTab !== "overview" && activeTab !== "browse" && activeTab !== "profile" && activeTab !== "sleep" && (
             <CategoryTab
               category={activeTab}
               metrics={filteredMetrics}
@@ -222,32 +221,18 @@ export default function Dashboard() {
         </main>
       )}
 
-      {/* ═══ MOBILE BOTTOM NAV ═══ */}
+      {/* ═══ BOTTOM NAV — 3 tabs (Apple Health style) ═══ */}
       <nav className="bottom-nav">
-        {TABS.slice(0, 5).map((tab) => (
+        {BOTTOM_TABS.map((tab) => (
           <button
             key={tab.key}
-            onClick={() => setActiveTab(tab.key)}
+            onClick={() => setActiveTab(tab.key as any)}
             className={`bottom-nav-item ${activeTab === tab.key ? "active" : ""}`}
           >
             <span className="nav-icon">{tab.icon}</span>
             <span>{tab.label}</span>
-            {activeTab === tab.key && <div className="nav-dot" />}
           </button>
         ))}
-        <button
-          onClick={() => {
-            // Cycle through remaining tabs
-            const extraTabs = TABS.slice(5);
-            const currentIdx = extraTabs.findIndex(t => t.key === activeTab);
-            const next = extraTabs[(currentIdx + 1) % extraTabs.length];
-            setActiveTab(next.key);
-          }}
-          className={`bottom-nav-item ${TABS.slice(5).some(t => t.key === activeTab) ? "active" : ""}`}
-        >
-          <span className="nav-icon">⋯</span>
-          <span>Mai mult</span>
-        </button>
       </nav>
     </div>
   );
@@ -329,6 +314,16 @@ function OverviewTab({
       />
 
       {/* ─────────────────────────────────────────── */}
+      {/*  Activity Rings (Apple Fitness style)        */}
+      {/* ─────────────────────────────────────────── */}
+      <ActivityRings
+        activeEnergy={metrics.activeEnergy}
+        exerciseTime={metrics.exerciseTime}
+        standTime={metrics.standTime}
+        stepCount={metrics.stepCount}
+      />
+
+      {/* ─────────────────────────────────────────── */}
       {/*  2. PROGRES — clear week-over-week deltas   */}
       {/*     "Did I improve? By how much?"           */}
       {/* ─────────────────────────────────────────── */}
@@ -361,7 +356,7 @@ function OverviewTab({
       <section>
         <div className="hh-section-label">
           <span>Favorite</span>
-          <span style={{ color: "var(--label-tertiary)", textTransform: "none", letterSpacing: 0 }}>{periodLabel}</span>
+          <span>{periodLabel}</span>
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 stagger-in">
           {favoriteMetrics.map((key) => (
@@ -376,7 +371,7 @@ function OverviewTab({
       <section>
         <div className="hh-section-label">
           <span>Tendinte</span>
-          <span style={{ color: "var(--label-tertiary)", textTransform: "none", letterSpacing: 0 }}>{periodLabel}</span>
+          <span>{periodLabel}</span>
         </div>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
           {metrics.restingHeartRate?.length >= 3 && <TrendChart metricKey="restingHeartRate" data={metrics.restingHeartRate} />}
@@ -435,9 +430,9 @@ function ActionableHighlights({
   allSleep: SleepNight[];
 }) {
   const actionableInsights = useMemo(() => {
-    const all = generateInsights(allMetrics, allSleep);
-    return all.filter(i => i.severity === "alert" || i.severity === "warning").slice(0, 3);
-  }, [allMetrics, allSleep]);
+    const all = generateSmartInsights(metrics, sleepNights, allMetrics, allSleep, 30);
+    return all.filter(i => i.severity === "critical" || i.severity === "warning").slice(0, 3);
+  }, [metrics, sleepNights, allMetrics, allSleep]);
 
   if (actionableInsights.length === 0) {
     return (
@@ -491,7 +486,7 @@ function AdvancedSections({
       <section>
         <div className="hh-section-label">
           <span>Analiza adaptiva</span>
-          <span style={{ color: "var(--label-tertiary)", textTransform: "none", letterSpacing: 0 }}>{periodLabel}</span>
+          <span>{periodLabel}</span>
         </div>
         <AdaptiveAnalysis
           metrics={metrics}
@@ -590,6 +585,72 @@ function AdvancedSections({
       >
         Ascunde analizele avansate
       </button>
+    </div>
+  );
+}
+
+// ═══ BROWSE TAB — Apple Health "Browse" pattern ═══
+function BrowseTab({
+  metrics, sleepNights, allMetrics, allSleep, metricsForCategory,
+}: {
+  metrics: Record<string, DailySummary[]>;
+  sleepNights: SleepNight[];
+  allMetrics: Record<string, DailySummary[]>;
+  allSleep: SleepNight[];
+  metricsForCategory: (cat: MetricCategory) => string[];
+}) {
+  const { setActiveTab } = useHealthStore();
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      <div className="hh-section-label"><span>Categorii</span></div>
+      <div className="hh-inset-group">
+        {CATEGORY_TABS.map((cat) => {
+          const count = metricsForCategory(cat.key).length;
+          return (
+            <button
+              key={cat.key}
+              onClick={() => setActiveTab(cat.key)}
+              className="hh-card-tappable"
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                width: "100%",
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                textAlign: "left",
+              }}
+            >
+              <div className="flex items-center gap-3">
+                <span style={{ fontSize: 22 }}>{cat.icon}</span>
+                <div>
+                  <span className="hh-body" style={{ color: "var(--label-primary)", fontWeight: 500, display: "block" }}>
+                    {cat.label}
+                  </span>
+                  {count > 0 && (
+                    <span className="hh-caption" style={{ color: "var(--label-tertiary)" }}>
+                      {count} {count === 1 ? "metrica" : "metrici"}
+                    </span>
+                  )}
+                </div>
+              </div>
+              <span style={{ color: "var(--label-tertiary)", fontSize: 17 }}>›</span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ═══ PROFILE TAB ═══
+function ProfileTab() {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      <div className="hh-section-label"><span>Profil</span></div>
+      <ProfileSetup shouldShow={true} />
     </div>
   );
 }

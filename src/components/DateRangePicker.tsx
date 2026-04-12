@@ -18,12 +18,12 @@ export function DateRangePicker() {
   const { datePreset, setDatePreset } = useHealthStore();
 
   return (
-    <div className="flex items-center gap-1 overflow-x-auto no-scrollbar">
+    <div className="segment-control" style={{ maxWidth: "100%", overflowX: "auto" }}>
       {PRESETS.map((p) => (
         <button
           key={p.key}
           onClick={() => setDatePreset(p.key)}
-          className={`pill shrink-0 ${datePreset === p.key ? "pill-active" : ""}`}
+          className={`segment-item${datePreset === p.key ? " segment-active" : ""}`}
         >
           {p.label}
         </button>

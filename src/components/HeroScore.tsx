@@ -3,7 +3,6 @@
 import { useMemo } from "react";
 import type { DailySummary, SleepNight } from "@/lib/parser/healthTypes";
 import { calculateRecovery } from "@/lib/stats/recovery";
-import { HelpTip } from "./HelpTip";
 
 interface HeroScoreProps {
   rhrData: DailySummary[];
@@ -13,23 +12,9 @@ interface HeroScoreProps {
   respData?: DailySummary[];
   spo2Data?: DailySummary[];
   tempData?: DailySummary[];
-  /** All dates in the currently selected period. Recovery is computed
-   *  for each date and averaged (or single value when only 1 date). */
   periodDates?: string[];
-  /** Label for the period (e.g., "Azi", "7 zile") */
   periodLabel?: string;
 }
-
-const COMPONENT_COLORS: Record<string, string> = {
-  "HRV": "#FF2D55",
-  "Puls repaus": "#FF3B30",
-  "Somn": "#AF52DE",
-  "Balanta antrenament": "#FF9500",
-  "Efort ieri": "#FA114F",
-  "Rata respiratorie": "#5AC8FA",
-  "SpO2": "#34C759",
-  "Temperatura": "#FF9500",
-};
 
 function getScoreLabel(score: number): string {
   if (score >= 80) return "Excelent";
@@ -46,34 +31,55 @@ function getScoreColor(score: number): string {
   return "#FF3B30";
 }
 
-function getScoreMessage(score: number): string {
-  if (score >= 80) return "Esti gata pentru efort intens.";
-  if (score >= 60) return "In forma buna — antrenament moderat.";
-  if (score >= 40) return "Recupereaza. Evita efortul intens.";
-  if (score >= 20) return "Odihneste-te. Prioritizeaza somnul.";
-  return "Odihna completa. Asculta-ti corpul.";
-}
+/**
+ * Recovery ring gauge — single circular ring (Apple-style).
+ * Renders as SVG arc with rounded linecap and subtle glow.
+ */
+function RecoveryRing({ score, color, size = 100 }: { score: number; color: string; size?: number }) {
+  const strokeWidth = 10;
+  const radius = (size - strokeWidth) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const progress = Math.max(0, Math.min(100, score)) / 100;
+  const dashOffset = circumference * (1 - progress);
+  const center = size / 2;
 
-function formatDateRo(dateStr: string): string {
-  try {
-    const d = new Date(dateStr + "T00:00:00");
-    const months = ["ianuarie", "februarie", "martie", "aprilie", "mai", "iunie", "iulie", "august", "septembrie", "octombrie", "noiembrie", "decembrie"];
-    const days = ["duminica", "luni", "marti", "miercuri", "joi", "vineri", "sambata"];
-    return `${days[d.getDay()]}, ${d.getDate()} ${months[d.getMonth()]}`;
-  } catch {
-    return dateStr;
-  }
+  return (
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ transform: "rotate(-90deg)" }}>
+      {/* Background track */}
+      <circle
+        cx={center}
+        cy={center}
+        r={radius}
+        fill="none"
+        stroke={color}
+        strokeWidth={strokeWidth}
+        opacity={0.15}
+      />
+      {/* Progress arc */}
+      <circle
+        cx={center}
+        cy={center}
+        r={radius}
+        fill="none"
+        stroke={color}
+        strokeWidth={strokeWidth}
+        strokeLinecap="round"
+        strokeDasharray={circumference}
+        strokeDashoffset={dashOffset}
+        style={{
+          transition: "stroke-dashoffset 800ms cubic-bezier(0.16, 1, 0.3, 1)",
+          filter: `drop-shadow(0 0 4px ${color}66)`,
+        }}
+      />
+    </svg>
+  );
 }
 
 export function HeroScore({
   rhrData, hrvData, sleepData, exerciseData, respData, spo2Data, tempData,
   periodDates, periodLabel,
 }: HeroScoreProps) {
-  // Compute recovery for EACH date in the period, then average them.
-  // For single-day periods (today/yesterday), this gives one score.
-  // For multi-day periods (7d/30d/etc), this gives the period average.
   const result = useMemo(() => {
-    // Determine which dates to compute for
     let dates = periodDates && periodDates.length > 0
       ? [...new Set(periodDates)].sort()
       : [];
@@ -84,227 +90,121 @@ export function HeroScore({
       if (last) dates = [last];
     }
 
-    if (dates.length === 0) {
-      return { score: null, label: "", color: "", message: "", components: [], confidence: "low" as const, dateCount: 0, latestDate: "" };
-    }
+    if (dates.length === 0) return null;
 
-    // Compute recovery for each date
     const recoveries = dates
-      .map(date => ({
-        date,
-        rec: calculateRecovery(rhrData, hrvData, sleepData, date, exerciseData, respData, spo2Data, tempData),
-      }))
-      .filter(r => r.rec.hasEnoughData);
+      .map(date => calculateRecovery(rhrData, hrvData, sleepData, date, exerciseData, respData, spo2Data, tempData))
+      .filter(r => r.hasEnoughData);
 
     if (recoveries.length === 0) {
-      // Try fallback: compute for latest available date
       const latest = [...new Set([...rhrData.map(d => d.date), ...hrvData.map(d => d.date)])].sort().pop();
       if (latest) {
         const rec = calculateRecovery(rhrData, hrvData, sleepData, latest, exerciseData, respData, spo2Data, tempData);
-        if (rec.hasEnoughData) {
-          return {
-            score: rec.total,
-            label: getScoreLabel(rec.total),
-            color: getScoreColor(rec.total),
-            message: getScoreMessage(rec.total),
-            components: rec.components.filter(c => c.available),
-            confidence: rec.confidence,
-            dateCount: 1,
-            latestDate: latest,
-            fallback: true,
-          };
-        }
+        if (rec.hasEnoughData) return { score: rec.total, components: rec.components.filter(c => c.available), confidence: rec.confidence, dateCount: 1 };
       }
-      return { score: null, label: "", color: "", message: "Date insuficiente pentru calcul (minim 14 zile de date cardiovasculare necesare).", components: [], confidence: "low" as const, dateCount: 0, latestDate: "" };
+      return null;
     }
 
-    // Average the scores
-    const avgScore = Math.round(
-      recoveries.reduce((s, r) => s + r.rec.total, 0) / recoveries.length
-    );
+    const avgScore = Math.round(recoveries.reduce((s, r) => s + r.total, 0) / recoveries.length);
 
-    // Average each component too
-    const componentAvgs: Record<string, { name: string; scores: number[] }> = {};
-    for (const { rec } of recoveries) {
+    const compMap: Record<string, number[]> = {};
+    for (const rec of recoveries) {
       for (const c of rec.components) {
         if (!c.available) continue;
-        if (!componentAvgs[c.name]) componentAvgs[c.name] = { name: c.name, scores: [] };
-        componentAvgs[c.name].scores.push(c.score);
+        (compMap[c.name] ??= []).push(c.score);
       }
     }
-    const avgComponents = Object.values(componentAvgs)
-      .map(c => ({
-        name: c.name,
-        score: Math.round(c.scores.reduce((s, v) => s + v, 0) / c.scores.length),
-      }))
-      .sort((a, b) => b.score - a.score);
-
-    const latestDate = recoveries[recoveries.length - 1].date;
-    // Confidence: average of confidences (take worst)
-    const confidences = recoveries.map(r => r.rec.confidence);
-    const confidence: "high" | "medium" | "low" = confidences.includes("low") ? "low"
-      : confidences.includes("medium") ? "medium" : "high";
+    const avgComps = Object.entries(compMap).map(([name, scores]) => ({
+      name,
+      score: Math.round(scores.reduce((s, v) => s + v, 0) / scores.length),
+    }));
 
     return {
       score: avgScore,
-      label: getScoreLabel(avgScore),
-      color: getScoreColor(avgScore),
-      message: getScoreMessage(avgScore),
-      components: avgComponents,
-      confidence,
+      components: avgComps,
+      confidence: recoveries.some(r => r.confidence === "low") ? "low" : recoveries.some(r => r.confidence === "medium") ? "medium" : "high",
       dateCount: recoveries.length,
-      latestDate,
     };
   }, [rhrData, hrvData, sleepData, exerciseData, respData, spo2Data, tempData, periodDates]);
 
-  if (result.score === null) {
+  if (!result) {
     return (
       <div className="hh-card animate-in">
-        <p className="hh-caption" style={{ color: "var(--label-secondary)", letterSpacing: "0.045em", textTransform: "uppercase", marginBottom: 8 }}>
-          Recuperare
-        </p>
-        <p className="hh-body" style={{ color: "var(--label-secondary)" }}>
-          {result.message || "Date insuficiente"}
+        <p className="hh-footnote" style={{ color: "var(--label-secondary)" }}>
+          Recuperare — date insuficiente (minim 14 zile).
         </p>
       </div>
     );
   }
 
-  const isAverage = result.dateCount > 1;
+  const { score, components, confidence, dateCount } = result;
+  const color = getScoreColor(score);
+  const label = getScoreLabel(score);
+  const isAverage = dateCount > 1;
+
+  // Show top 4 sub-scores as compact badges
+  const topComps = components.sort((a, b) => b.score - a.score).slice(0, 4);
 
   return (
-    <div className="hh-card animate-scale-in" style={{ padding: "20px 20px 18px" }}>
-      {/* Uppercase section label + confidence badge + date/period */}
-      <div className="flex items-center justify-between" style={{ marginBottom: 8 }}>
-        <div className="flex items-center gap-2 min-w-0">
-          <span
-            className="hh-caption"
+    <div className="hh-card animate-scale-in" style={{ padding: 20 }}>
+      <div className="flex items-center gap-4">
+        {/* Ring gauge */}
+        <div style={{ position: "relative", width: 100, height: 100, flexShrink: 0 }}>
+          <RecoveryRing score={score} color={color} size={100} />
+          <div
             style={{
-              color: "var(--label-secondary)",
-              letterSpacing: "0.045em",
-              textTransform: "uppercase",
-              fontWeight: 500,
+              position: "absolute",
+              inset: 0,
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
             }}
           >
-            Recuperare {isAverage && periodLabel ? `· medie ${periodLabel.toLowerCase()}` : ""}
-          </span>
-          <span
-            title={
-              result.confidence === "high" ? "Toate semnalele disponibile"
-              : result.confidence === "medium" ? "Cateva semnale indisponibile"
-              : "Date limitate — precizie redusa"
-            }
-            style={{
-              fontSize: 9,
-              fontWeight: 700,
-              letterSpacing: "0.05em",
-              textTransform: "uppercase",
-              padding: "2px 6px",
-              borderRadius: 999,
-              background:
-                result.confidence === "high" ? "rgba(52,199,89,0.15)"
-                : result.confidence === "medium" ? "rgba(255,149,0,0.15)"
-                : "rgba(255,59,48,0.15)",
-              color:
-                result.confidence === "high" ? "#34C759"
-                : result.confidence === "medium" ? "#FF9500"
-                : "#FF3B30",
-              whiteSpace: "nowrap",
-            }}
-          >
-            {result.confidence === "high" ? "Precis"
-              : result.confidence === "medium" ? "Aprox."
-              : "Limitat"}
-          </span>
-          <HelpTip
-            text="Scorul de recuperare combina pana la 8 semnale: HRV (z-score ln-transformed), puls repaus, somn (eficienta + durata + deep/REM + consistenta), balanta antrenament (ACWR), efort ziua precedenta, rata respiratorie, SpO2 si temperatura de piele. Nivelul 'Precis' = toate semnalele disponibile."
-            source="Buchheit 2014 · Plews 2013"
-          />
+            <span
+              className="hh-mono-num"
+              style={{ fontSize: 32, fontWeight: 700, color, lineHeight: 1, letterSpacing: "-0.02em" }}
+            >
+              {score}
+            </span>
+          </div>
         </div>
-        {result.latestDate && (
-          <span className="hh-caption" style={{ color: "var(--label-tertiary)" }}>
-            {isAverage
-              ? `${result.dateCount} zile`
-              : formatDateRo(result.latestDate)}
-          </span>
-        )}
-      </div>
 
-      {/* Hero number */}
-      <div className="flex items-baseline gap-2" style={{ marginBottom: 4 }}>
-        <span
-          className="hh-mono-num"
-          style={{
-            fontSize: "56px",
-            fontWeight: 700,
-            lineHeight: 1,
-            color: result.color,
-            letterSpacing: "-0.025em",
-          }}
-        >
-          {result.score}
-        </span>
-        <span
-          style={{
-            fontSize: "22px",
-            fontWeight: 700,
-            color: result.color,
-            letterSpacing: "-0.01em",
-          }}
-        >
-          {result.label}
-        </span>
-      </div>
+        {/* Text side */}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <p className="hh-headline" style={{ color: "var(--label-primary)", marginBottom: 2 }}>
+            {label}
+          </p>
+          <p className="hh-footnote" style={{ color: "var(--label-secondary)", marginBottom: 8 }}>
+            {isAverage && periodLabel
+              ? `Medie ${periodLabel.toLowerCase()}`
+              : "Recuperare"}
+            {confidence !== "high" && (
+              <span style={{ marginLeft: 6, color: confidence === "medium" ? "#FF9500" : "#FF3B30" }}>
+                · {confidence === "medium" ? "aprox." : "limitat"}
+              </span>
+            )}
+          </p>
 
-      {/* Descriptive message */}
-      <p
-        className="hh-body"
-        style={{
-          color: "var(--label-secondary)",
-          marginTop: 6,
-          marginBottom: 18,
-        }}
-      >
-        {isAverage && periodLabel
-          ? `Scor mediu pe ${periodLabel.toLowerCase()} — ${result.message.toLowerCase()}`
-          : result.message}
-      </p>
-
-      {/* Component bars */}
-      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-        {result.components.map((comp) => {
-          const barColor = COMPONENT_COLORS[comp.name] || "var(--accent)";
-          return (
-            <div key={comp.name}>
-              <div className="flex items-center justify-between" style={{ marginBottom: 4 }}>
-                <span className="hh-footnote" style={{ color: "var(--label-secondary)" }}>
-                  {comp.name}
-                </span>
-                <span className="hh-footnote hh-mono-num" style={{ color: "var(--label-primary)", fontWeight: 600 }}>
-                  {comp.score}
-                </span>
-              </div>
-              <div
+          {/* Sub-score badges */}
+          <div className="flex flex-wrap gap-1.5">
+            {topComps.map(c => (
+              <span
+                key={c.name}
+                className="hh-caption-2 hh-mono-num"
                 style={{
-                  height: 4,
-                  borderRadius: 999,
-                  background: "rgba(255,255,255,0.08)",
-                  overflow: "hidden",
+                  padding: "3px 8px",
+                  borderRadius: 6,
+                  background: "rgba(120,120,128,0.12)",
+                  color: "var(--label-secondary)",
+                  fontWeight: 600,
                 }}
               >
-                <div
-                  style={{
-                    width: `${Math.min(comp.score, 100)}%`,
-                    height: "100%",
-                    background: barColor,
-                    borderRadius: 999,
-                    transition: "width 600ms cubic-bezier(0.16, 1, 0.3, 1)",
-                  }}
-                />
-              </div>
-            </div>
-          );
-        })}
+                {c.name} {c.score}
+              </span>
+            ))}
+          </div>
+        </div>
       </div>
     </div>
   );

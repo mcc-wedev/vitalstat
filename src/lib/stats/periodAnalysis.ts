@@ -121,12 +121,8 @@ function roundRo(n: number, d: number): string {
 // ── Main Entry ──
 
 const CORE_METRICS = [
-  { key: "restingHeartRate", field: "mean" as const },
-  { key: "hrv", field: "mean" as const },
-  { key: "stepCount", field: "sum" as const },
-  { key: "exerciseTime", field: "sum" as const },
-  { key: "oxygenSaturation", field: "mean" as const },
-  { key: "respiratoryRate", field: "mean" as const },
+  "restingHeartRate", "hrv", "stepCount", "exerciseTime",
+  "oxygenSaturation", "respiratoryRate",
 ];
 
 export function generatePeriodReport(
@@ -169,21 +165,21 @@ function computeAverages(
 ): MetricAverage[] {
   const result: MetricAverage[] = [];
 
-  for (const { key, field } of CORE_METRICS) {
+  for (const key of CORE_METRICS) {
     const data = metrics[key];
     const allData = allMetrics[key];
     const cfg = METRIC_CONFIG[key];
     if (!data || !cfg || data.length < 7) continue;
 
-    // Current period values
-    const currentValues = data.map(d => d[field]);
+    // Current period values (use getDisplayValue for unit conversion)
+    const currentValues = data.map(d => getDisplayValue(d, key));
     const currentAvg = avg(currentValues);
 
     // Previous period (same length, immediately before)
     const allSorted = (allData || data).slice().sort((a, b) => a.date.localeCompare(b.date));
     const firstDate = data[0]?.date;
     const prevData = allSorted.filter(d => d.date < firstDate).slice(-windowDays);
-    const prevValues = prevData.map(d => d[field]);
+    const prevValues = prevData.map(d => getDisplayValue(d, key));
     const prevAvg = prevValues.length >= 7 ? avg(prevValues) : currentAvg;
 
     const deltaAbs = currentAvg - prevAvg;
@@ -366,7 +362,7 @@ function compareQuarters(
   const numQ = windowDays >= 360 ? 4 : windowDays >= 180 ? 3 : 2;
   const result: QuarterDelta[] = [];
 
-  for (const { key, field } of CORE_METRICS) {
+  for (const key of CORE_METRICS) {
     const data = metrics[key];
     const cfg = METRIC_CONFIG[key];
     if (!data || !cfg || data.length < numQ * 7) continue;
@@ -377,7 +373,7 @@ function compareQuarters(
 
     for (let q = 0; q < numQ; q++) {
       const slice = sorted.slice(q * qSize, (q + 1) * qSize);
-      quarters.push(avg(slice.map(d => d[field])));
+      quarters.push(avg(slice.map(d => getDisplayValue(d, key))));
     }
 
     // Determine trend

@@ -5,7 +5,8 @@ import type { DailySummary, SleepNight } from "@/lib/parser/healthTypes";
 import { METRIC_CONFIG } from "@/lib/parser/healthTypes";
 import { calculateRecovery } from "@/lib/stats/recovery";
 import { meanStd } from "@/lib/stats/zScore";
-import { generateSmartInsights } from "@/lib/stats/smartInsights";
+import { generateSmartInsights, type SmartInsight } from "@/lib/stats/smartInsights";
+import { mannKendall } from "@/lib/stats/advanced";
 import { LineChart, Line, ResponsiveContainer, ReferenceDot } from "recharts";
 import { ShareDailyReport } from "./ShareDailyReport";
 import { RecoveryRootCause } from "./RecoveryRootCause";
@@ -69,6 +70,130 @@ const STATUS_COLORS = {
   amber: { bg: "rgba(255,149,0,0.08)", border: "rgba(255,149,0,0.2)", accent: "#FF9500" },
   red: { bg: "rgba(255,59,48,0.08)", border: "rgba(255,59,48,0.2)", accent: "#FF3B30" },
 };
+
+/* ═══════════════════════════════════════════════════
+ *  TRAINING READINESS — "Ce poti face azi"
+ *  Based on recovery score + individual components.
+ *  Like Garmin Training Readiness / WHOOP Strain Coach.
+ * ═══════════════════════════════════════════════════ */
+
+interface TrainingGuidance {
+  icon: string;
+  label: string;
+  color: string;
+  activities: string[];
+  avoid: string[];
+  reason: string;
+}
+
+function getTrainingGuidance(
+  total: number,
+  components: { name: string; score: number; weight: number; available: boolean }[],
+): TrainingGuidance {
+  const get = (name: string) => components.find(c => c.name === name && c.available)?.score ?? -1;
+  const hrvScore = get("HRV");
+  const sleepScore = get("Somn");
+  const strainScore = get("Efort ieri");
+  const trainingScore = get("Balanta antrenament");
+
+  if (total >= 80) {
+    const hasGreatSleep = sleepScore >= 80;
+    return {
+      icon: "🟢", label: "Pregatit pentru efort maxim", color: "#34C759",
+      activities: ["Intervale de intensitate mare (HIIT)", "Antrenament de forta greu", "Cardio lung (>60 min)", "Competitie / testare"],
+      avoid: [],
+      reason: hasGreatSleep
+        ? "Somn excelent + recuperare completa. Corpul este pregatit pentru performanta de varf."
+        : "Toti indicatorii fiziologici sunt in zona verde. Valorifica aceasta zi.",
+    };
+  }
+
+  if (total >= 60) {
+    const lowHRV = hrvScore >= 0 && hrvScore < 40;
+    const highStrain = strainScore >= 0 && strainScore < 40;
+    return {
+      icon: "🟡", label: "Antrenament moderat", color: "#30D158",
+      activities: ["Cardio zona 2 (30-45 min)", "Forta cu volum redus", "Tehnica / mobilitate"],
+      avoid: lowHRV
+        ? ["Intervale intense — HRV-ul nu s-a recuperat complet"]
+        : highStrain
+        ? ["Volum mare — efortul de ieri inca se simte"]
+        : ["Sesiuni de peste 90 min"],
+      reason: lowHRV
+        ? "Energie buna, dar sistemul nervos autonom are nevoie de mai mult timp. Pastrati intensitatea sub 75% din pulsul maxim."
+        : highStrain
+        ? "Recuperare buna general, dar efortul recent necesita o zi mai usoara."
+        : "Corp in stare buna. Antrenament productiv la intensitate moderata.",
+    };
+  }
+
+  if (total >= 40) {
+    const poorSleep = sleepScore >= 0 && sleepScore < 40;
+    return {
+      icon: "🟠", label: "Recuperare activa", color: "#FF9500",
+      activities: ["Mers 30-45 min", "Stretching / yoga", "Mobilitate articulara"],
+      avoid: ["Antrenament intens", "Forta grea", "Intervale"],
+      reason: poorSleep
+        ? "Somnul slab a afectat recuperarea. Corpul repara tesuturile in timpul somnului profund — fara somn bun, antrenamentul intens face mai mult rau decat bine."
+        : "Mai multi indicatori sunt sub normal. O zi de miscare usoara ajuta la recuperare fara a adauga stres.",
+    };
+  }
+
+  return {
+    icon: "🔴", label: "Odihna prioritara", color: "#FF3B30",
+    activities: ["Somn suplimentar (+1-2 ore)", "Plimbare scurta (15-20 min)", "Hidratare si nutritie"],
+    avoid: ["Orice efort intens", "Antrenament de forta", "Cardio peste 30 min"],
+    reason: "Corpul are nevoie de odihna. Antrenamentul in aceasta stare intarzie recuperarea si creste riscul de accidentare. Prioritati: somn, hidratare, alimentatie.",
+  };
+}
+
+/* ═══════════════════════════════════════════════════
+ *  7-DAY MINI-TRENDS — directia indicatorilor cheie
+ * ═══════════════════════════════════════════════════ */
+
+interface MiniTrend {
+  label: string;
+  direction: "up" | "down" | "flat";
+  improving: boolean;
+  delta: string;
+}
+
+function compute7dayTrends(metrics: Record<string, DailySummary[]>, date: string): MiniTrend[] {
+  const trends: MiniTrend[] = [];
+  const checks = [
+    { key: "restingHeartRate", label: "Puls", field: "mean" as const, higherBetter: false, unit: "bpm" },
+    { key: "hrv", label: "HRV", field: "mean" as const, higherBetter: true, unit: "ms" },
+    { key: "stepCount", label: "Pasi", field: "sum" as const, higherBetter: true, unit: "" },
+  ];
+
+  for (const c of checks) {
+    const data = metrics[c.key];
+    if (!data || data.length < 10) continue;
+    const recent = data.filter(d => d.date <= date).slice(-10);
+    if (recent.length < 8) continue;
+    const vals = recent.map(d => d[c.field]);
+    const mk = mannKendall(vals);
+    if (!mk) continue;
+
+    const first = vals[0], last = vals[vals.length - 1];
+    const delta = last - first;
+    const direction: "up" | "down" | "flat" = Math.abs(mk.tau) < 0.15 ? "flat" : mk.tau > 0 ? "up" : "down";
+    const improving = direction === "flat" ? true : (mk.tau > 0) === c.higherBetter;
+
+    trends.push({
+      label: c.label,
+      direction,
+      improving,
+      delta: direction === "flat" ? "stabil" : `${delta > 0 ? "+" : ""}${Math.round(delta)} ${c.unit}`,
+    });
+  }
+
+  return trends;
+}
+
+/* ═══════════════════════════════════════════════════
+ *  MAIN COMPONENT
+ * ═══════════════════════════════════════════════════ */
 
 export function DailyReport({ date, metrics, sleepNights }: DailyReportProps) {
   const BASELINE_DAYS = 28;
@@ -152,14 +277,25 @@ export function DailyReport({ date, metrics, sleepNights }: DailyReportProps) {
     return { hours, baseline, z, effPct, deepPct, remPct, status: getStatus(z, true) as "green" | "amber" | "red" };
   }, [sleepNights, date]);
 
-  const topInsights = useMemo(() => {
+  const allInsights = useMemo(() => {
     const filtered: Record<string, DailySummary[]> = {};
     for (const [key, data] of Object.entries(metrics)) {
       filtered[key] = data.filter(d => d.date <= date);
     }
     const filteredSleep = sleepNights.filter(n => n.date <= date);
-    return generateSmartInsights(filtered, filteredSleep, metrics, sleepNights, 7).slice(0, 5);
+    return generateSmartInsights(filtered, filteredSleep, metrics, sleepNights, 7);
   }, [metrics, sleepNights, date]);
+
+  // Split insights: alerts (critical/warning) vs analysis (info/positive)
+  const alerts = useMemo(() => allInsights.filter(i => i.severity === "critical" || i.severity === "warning").slice(0, 3), [allInsights]);
+  const analysis = useMemo(() => allInsights.filter(i => i.severity !== "critical" && i.severity !== "warning").slice(0, 4), [allInsights]);
+
+  const guidance = useMemo(() => {
+    if (!recovery.hasEnoughData) return null;
+    return getTrainingGuidance(recovery.total, recovery.components);
+  }, [recovery]);
+
+  const trends = useMemo(() => compute7dayTrends(metrics, date), [metrics, date]);
 
   const energyColor = getEnergyColor(recovery.total);
   const energyLabel = getEnergyLabel(recovery.total);
@@ -242,8 +378,106 @@ export function DailyReport({ date, metrics, sleepNights }: DailyReportProps) {
         </div>
       )}
 
+      {/* ═══ TRAINING GUIDANCE — "Ce poti face azi" ═══ */}
+      {guidance && (
+        <div className="hh-card" style={{ padding: 16, borderLeft: `4px solid ${guidance.color}` }}>
+          <div className="flex items-center gap-2" style={{ marginBottom: 8 }}>
+            <span style={{ fontSize: 18 }}>{guidance.icon}</span>
+            <span className="hh-headline" style={{ color: guidance.color, fontWeight: 700, fontSize: 16 }}>
+              {guidance.label}
+            </span>
+          </div>
+
+          <p className="hh-footnote" style={{ color: "var(--label-secondary)", lineHeight: 1.5, marginBottom: 10 }}>
+            {guidance.reason}
+          </p>
+
+          <div style={{ display: "flex", gap: 16 }}>
+            <div style={{ flex: 1 }}>
+              <p className="hh-caption-2" style={{ color: "var(--label-tertiary)", fontWeight: 600, marginBottom: 4, textTransform: "uppercase", letterSpacing: 0.5, fontSize: 10 }}>
+                Recomandat
+              </p>
+              {guidance.activities.map((a, i) => (
+                <p key={i} className="hh-footnote" style={{ color: "var(--label-primary)", lineHeight: 1.6, fontSize: 12 }}>
+                  ✓ {a}
+                </p>
+              ))}
+            </div>
+            {guidance.avoid.length > 0 && (
+              <div style={{ flex: 1 }}>
+                <p className="hh-caption-2" style={{ color: "var(--label-tertiary)", fontWeight: 600, marginBottom: 4, textTransform: "uppercase", letterSpacing: 0.5, fontSize: 10 }}>
+                  De evitat
+                </p>
+                {guidance.avoid.map((a, i) => (
+                  <p key={i} className="hh-footnote" style={{ color: "var(--label-secondary)", lineHeight: 1.6, fontSize: 12 }}>
+                    ✗ {a}
+                  </p>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ═══ EARLY DETECTION ALERTS ═══ */}
+      {alerts.length > 0 && (
+        <section>
+          <div className="hh-section-label">
+            <span>Semnale timpurii</span>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {alerts.map(ins => {
+              const isCritical = ins.severity === "critical";
+              return (
+                <div
+                  key={ins.id}
+                  className="hh-card"
+                  style={{
+                    padding: "12px 14px",
+                    borderLeft: `4px solid ${isCritical ? "#FF3B30" : "#FF9500"}`,
+                    background: isCritical ? "rgba(255,59,48,0.06)" : "rgba(255,149,0,0.06)",
+                  }}
+                >
+                  <div className="flex items-center gap-2" style={{ marginBottom: 4 }}>
+                    <span style={{ fontSize: 14 }}>{isCritical ? "⚠️" : "⚡"}</span>
+                    <p className="hh-subheadline" style={{ color: "var(--label-primary)", fontWeight: 600, fontSize: 13 }}>
+                      {ins.title}
+                    </p>
+                  </div>
+                  <p className="hh-footnote" style={{ color: "var(--label-secondary)", lineHeight: 1.45, marginLeft: 22 }}>
+                    {ins.body}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
       {/* Root-cause explainer */}
       <RecoveryRootCause date={date} metrics={metrics} sleepNights={sleepNights} />
+
+      {/* ═══ 7-DAY TRENDS ═══ */}
+      {trends.length > 0 && (
+        <div className="hh-card" style={{ padding: "12px 16px" }}>
+          <p className="hh-caption-2" style={{ color: "var(--label-tertiary)", fontWeight: 600, marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.5, fontSize: 10 }}>
+            Directia ultimelor 10 zile
+          </p>
+          <div className="flex items-center justify-between">
+            {trends.map(t => {
+              const arrow = t.direction === "up" ? "↑" : t.direction === "down" ? "↓" : "→";
+              const color = t.direction === "flat" ? "var(--label-tertiary)" : t.improving ? "#34C759" : "#FF3B30";
+              return (
+                <div key={t.label} style={{ textAlign: "center", flex: 1 }}>
+                  <p className="hh-caption-2" style={{ color: "var(--label-tertiary)", marginBottom: 2 }}>{t.label}</p>
+                  <p className="hh-mono-num" style={{ color, fontWeight: 700, fontSize: 16 }}>{arrow}</p>
+                  <p className="hh-caption-2 hh-mono-num" style={{ color, fontSize: 11 }}>{t.delta}</p>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Metric grid — Apple Health card style */}
       <div className="grid grid-cols-2 gap-2.5">
@@ -317,15 +551,15 @@ export function DailyReport({ date, metrics, sleepNights }: DailyReportProps) {
         })()}
       </div>
 
-      {/* Insights */}
-      {topInsights.length > 0 && (
+      {/* ═══ ANALYSIS — info/positive insights ═══ */}
+      {analysis.length > 0 && (
         <section>
           <div className="hh-section-label">
             <span>Analiza</span>
           </div>
           <div className="hh-card" style={{ padding: 0 }}>
-            {topInsights.map((ins, i) => {
-              const sevColor = ins.severity === "critical" ? "#FF3B30" : ins.severity === "warning" ? "#FF9500" : ins.severity === "positive" ? "#34C759" : "#5AC8FA";
+            {analysis.map((ins, i) => {
+              const sevColor = ins.severity === "positive" ? "#34C759" : "#5AC8FA";
               return (
                 <div
                   key={ins.id}

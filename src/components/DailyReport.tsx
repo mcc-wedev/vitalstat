@@ -233,7 +233,10 @@ export function DailyReport({ date, metrics, sleepNights }: DailyReportProps) {
       const deltaPct = baseline > 0 ? (delta / baseline) * 100 : 0;
 
       const last7 = data.filter(d => d.date <= date).slice(-7);
-      const sparkline = last7.map(d => d[field]);
+      const sparkline = last7.map(d => {
+        const raw = d[field];
+        return key === "oxygenSaturation" && raw <= 1 ? raw * 100 : raw;
+      });
       const todayIdx = sparkline.length - 1;
 
       let displayValue = value;

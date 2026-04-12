@@ -665,7 +665,7 @@ function ProfileTab() {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <div className="hh-section-label"><span>Profil</span></div>
-      <ProfileSetup shouldShow={true} />
+      <ProfileSetup shouldShow={true} alwaysShow={true} />
     </div>
   );
 }

@@ -1187,11 +1187,12 @@ function illnessPrediction48h(metrics: Record<string, DailySummary[]>, sleepNigh
     signalDetails.push(`HRV -${pctDrop.toFixed(0)}% vs baseline`);
   }
 
-  if (spo2 && spo2.length >= 7) {
-    const spo2Base = meanStd(spo2.slice(-14, -2).map(d => d.mean > 50 ? d.mean : d.mean * 100));
+  if (spo2 && spo2.length >= 14) {
+    const baseSlice = spo2.slice(-14, -2);
+    const spo2Base = baseSlice.length >= 5 ? meanStd(baseSlice.map(d => d.mean > 50 ? d.mean : d.mean * 100)) : { mean: 0, std: 0 };
     const lastSpo2 = spo2[spo2.length - 1];
     const pct = lastSpo2.mean > 50 ? lastSpo2.mean : lastSpo2.mean * 100;
-    if (pct < spo2Base.mean - 1.5) {
+    if (spo2Base.mean > 0 && pct < spo2Base.mean - 1.5) {
       signals++;
       signalDetails.push(`SpO2 ${pct.toFixed(1)}% (sub baseline de ${spo2Base.mean.toFixed(1)}%)`);
     }

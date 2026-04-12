@@ -30,6 +30,7 @@ export default function RootLayout({
       lang="ro"
       className="h-full antialiased"
       style={{ fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Display', system-ui, sans-serif" }}
+      suppressHydrationWarning
     >
       <head>
         {/* Theme init — runs before first paint to avoid FOUC */}

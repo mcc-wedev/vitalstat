@@ -249,7 +249,7 @@ function spo2Screening(metrics: Record<string, DailySummary[]>): SmartInsight[] 
 
   const recent = spo2.slice(-7);
   const vals = recent.map(d => d.mean > 50 ? d.mean : d.mean * 100);
-  const minVals = recent.map(d => d.min > 50 ? d.min : d.min > 0 ? d.min * 100 : 100);
+  const minVals = recent.filter(d => d.min > 0).map(d => d.min > 50 ? d.min : d.min * 100);
   const avgPct = mean(vals);
   const minPct = Math.min(...minVals.filter(v => v > 0));
 

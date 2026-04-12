@@ -614,6 +614,20 @@ function ProfileTab() {
   const [importError, setImportError] = useState("");
   const [confirmDelete, setConfirmDelete] = useState(false);
 
+  /** Reload merged data from IndexedDB into Zustand store */
+  const reloadFromDB = useCallback(async () => {
+    const freshMeta = await getMeta();
+    if (freshMeta) {
+      const freshMetrics: Record<string, DailySummary[]> = {};
+      for (const key of freshMeta.availableMetrics) {
+        if (key === "sleepAnalysis") continue;
+        freshMetrics[key] = await getMetricData(key);
+      }
+      const freshSleep = await getSleepData();
+      setData(freshMetrics, freshSleep, freshMeta);
+    }
+  }, [setData]);
+
   const handleImport = useCallback(async (file: File) => {
     setImportError("");
     setImportStatus("Se citeste fisierul...");
@@ -639,17 +653,7 @@ function ProfileTab() {
         const data = JSON.parse(text);
         if (!data.meta || !data.metrics) throw new Error("Format JSON invalid");
         await saveHealthData(data.metrics, data.sleepNights || [], data.meta);
-        // Reload all data from DB
-        const freshMeta = await getMeta();
-        if (freshMeta) {
-          const freshMetrics: Record<string, DailySummary[]> = {};
-          for (const key of freshMeta.availableMetrics) {
-            if (key === "sleepAnalysis") continue;
-            freshMetrics[key] = await getMetricData(key);
-          }
-          const freshSleep = await getSleepData();
-          setData(freshMetrics, freshSleep, freshMeta);
-        }
+        await reloadFromDB();
         setImportStatus("");
         return;
       } else {
@@ -669,21 +673,17 @@ function ProfileTab() {
           else setImportStatus("Aproape gata...");
         },
         async (result) => {
-          setImportStatus("Se salveaza...");
-          await saveHealthData(result.summaries, result.sleepNights, result.meta);
-          // Reload ALL data from DB (merged)
-          const freshMeta = await getMeta();
-          if (freshMeta) {
-            const freshMetrics: Record<string, DailySummary[]> = {};
-            for (const key of freshMeta.availableMetrics) {
-              if (key === "sleepAnalysis") continue;
-              freshMetrics[key] = await getMetricData(key);
-            }
-            const freshSleep = await getSleepData();
-            setData(freshMetrics, freshSleep, freshMeta);
+          try {
+            setImportStatus("Se salveaza...");
+            await saveHealthData(result.summaries, result.sleepNights, result.meta);
+            await reloadFromDB();
+            setImportStatus("");
+            setImportProgress(0);
+          } catch (err) {
+            setImportError(err instanceof Error ? err.message : "Eroare la salvare");
+            setImportStatus("");
+            setImportProgress(0);
           }
-          setImportStatus("");
-          setImportProgress(0);
         },
         (errMsg) => {
           setImportError(errMsg);
@@ -696,7 +696,7 @@ function ProfileTab() {
       setImportStatus("");
       setImportProgress(0);
     }
-  }, [setData]);
+  }, [reloadFromDB]);
 
   const handleExportJSON = useCallback(async () => {
     const json = await exportAllData();

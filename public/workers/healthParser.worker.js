@@ -86,6 +86,7 @@ function parseHealthDate(dateStr) {
 }
 
 self.onmessage = function (e) {
+  try {
   const { buffer } = e.data;
   const totalSize = buffer.byteLength;
   const CHUNK_SIZE = 32 * 1024 * 1024;
@@ -257,6 +258,9 @@ self.onmessage = function (e) {
         .slice(0, 20),
     },
   });
+  } catch (err) {
+    self.postMessage({ type: "error", message: "Eroare la procesarea fisierului: " + (err.message || String(err)) });
+  }
 };
 
 function processSleepRecords(records) {

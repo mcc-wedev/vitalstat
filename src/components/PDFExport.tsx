@@ -10,9 +10,10 @@ import { meanStd } from "@/lib/stats/zScore";
 interface Props {
   metrics: Record<string, DailySummary[]>;
   sleepNights: SleepNight[];
+  label?: string;
 }
 
-export function PDFExport({ metrics, sleepNights }: Props) {
+export function PDFExport({ metrics, sleepNights, label }: Props) {
   const handleExport = useCallback(() => {
     // Get latest date
     const allDates = Object.values(metrics).flatMap(d => d.map(x => x.date));
@@ -110,8 +111,8 @@ ${insights.map(i => `<div class="insight insight-${i.severity}"><div class="insi
   }, [metrics, sleepNights]);
 
   return (
-    <button onClick={handleExport} className="pill text-[10px]" title="Exporta raport PDF">
-      📄
+    <button onClick={handleExport} className="pill" style={label ? { padding: "12px", fontSize: 13, fontWeight: 600, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 } : { fontSize: 10 }} title="Exporta raport PDF">
+      <span style={{ fontSize: 16 }}>📄</span>{label && ` ${label}`}
     </button>
   );
 }

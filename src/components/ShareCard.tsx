@@ -7,9 +7,10 @@ import { calculateRecovery } from "@/lib/stats/recovery";
 interface Props {
   metrics: Record<string, DailySummary[]>;
   sleepNights: SleepNight[];
+  label?: string;
 }
 
-export function ShareCard({ metrics, sleepNights }: Props) {
+export function ShareCard({ metrics, sleepNights, label }: Props) {
   const generateCard = useCallback(() => {
     const rhr = metrics.restingHeartRate;
     const hrv = metrics.hrv;
@@ -110,8 +111,8 @@ export function ShareCard({ metrics, sleepNights }: Props) {
   }, [metrics, sleepNights]);
 
   return (
-    <button onClick={generateCard} className="pill text-[10px]" title="Genereaza card de partajat">
-      📸
+    <button onClick={generateCard} className="pill" style={label ? { padding: "12px", fontSize: 13, fontWeight: 600, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 } : { fontSize: 10 }} title="Genereaza card de partajat">
+      <span style={{ fontSize: 16 }}>📸</span>{label && ` ${label}`}
     </button>
   );
 }

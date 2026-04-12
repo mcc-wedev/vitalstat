@@ -7,9 +7,10 @@ import { METRIC_CONFIG } from "@/lib/parser/healthTypes";
 interface Props {
   metrics: Record<string, DailySummary[]>;
   sleepNights: SleepNight[];
+  label?: string;
 }
 
-export function CSVExport({ metrics, sleepNights }: Props) {
+export function CSVExport({ metrics, sleepNights, label }: Props) {
   const handleExport = useCallback(() => {
     // Collect all dates
     const allDates = new Set<string>();
@@ -78,8 +79,8 @@ export function CSVExport({ metrics, sleepNights }: Props) {
   }, [metrics, sleepNights]);
 
   return (
-    <button onClick={handleExport} className="pill text-[10px]" title="Exporta CSV pentru Excel">
-      📊
+    <button onClick={handleExport} className="pill" style={label ? { padding: "12px", fontSize: 13, fontWeight: 600, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 } : { fontSize: 10 }} title="Exporta CSV pentru Excel">
+      <span style={{ fontSize: 16 }}>📊</span>{label && ` ${label}`}
     </button>
   );
 }

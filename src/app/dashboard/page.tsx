@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useHealthStore, getDateBounds, filterByDate, filterSleepByDate } from "@/stores/healthStore";
 import { MetricCard } from "@/components/MetricCard";
@@ -43,13 +43,15 @@ import { generateSmartInsights } from "@/lib/stats/smartInsights";
 import type { DailySummary, SleepNight } from "@/lib/parser/healthTypes";
 import { Onboarding } from "@/components/Onboarding";
 import { ProfileSetup } from "@/components/ProfileSetup";
-import { clearData, exportAllData } from "@/lib/db/indexedDB";
+import { clearData, exportAllData, saveHealthData, getMeta, getMetricData, getSleepData } from "@/lib/db/indexedDB";
+import { parseHealthBuffer } from "@/lib/parser/xmlParser";
+import JSZip from "jszip";
 
 // Bottom nav — Apple Health 3-tab pattern: Summary, Browse, Profile
 const BOTTOM_TABS: { key: string; label: string; icon: string }[] = [
   { key: "overview", label: "Sumar", icon: "📊" },
   { key: "browse", label: "Categorii", icon: "🔍" },
-  { key: "profile", label: "Profil", icon: "👤" },
+  { key: "profile", label: "Setari", icon: "⚙️" },
 ];
 
 // Category tabs — used inside Browse mode
@@ -64,8 +66,7 @@ const CATEGORY_TABS: { key: MetricCategory; label: string; icon: string }[] = [
 
 export default function Dashboard() {
   const router = useRouter();
-  const { hasData, metrics, sleepNights, meta, activeTab, setActiveTab, datePreset, clearData: clearStore } = useHealthStore();
-  const [showActions, setShowActions] = useState(false);
+  const { hasData, metrics, sleepNights, meta, activeTab, setActiveTab, datePreset } = useHealthStore();
 
   useEffect(() => {
     if (!hasData) router.push("/");
@@ -95,23 +96,6 @@ export default function Dashboard() {
 
   if (!hasData || !meta) return null;
 
-  const handleReset = async () => {
-    await clearData();
-    clearStore();
-    router.push("/");
-  };
-
-  const handleExport = async () => {
-    const json = await exportAllData();
-    const blob = new Blob([json], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `vitalstat-export-${new Date().toISOString().substring(0, 10)}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
   const metricsForCategory = (cat: MetricCategory) =>
     Object.entries(METRIC_CONFIG)
       .filter(([key, cfg]) => cfg.category === cat && filteredMetrics[key]?.length > 0)
@@ -127,60 +111,20 @@ export default function Dashboard() {
       <Onboarding />
       <ProfileSetup shouldShow={hasData} />
 
-      {/* ═══ HEADER — Apple Large Title ═══ */}
+      {/* ═══ HEADER — Clean, minimal ═══ */}
       <header className="sticky top-0 z-50 backdrop-blur-xl" style={{ borderBottom: "0.5px solid var(--separator)", background: "var(--overlay-header)" }}>
         <div className="max-w-6xl mx-auto px-4 sm:px-5">
-          {/* Top row */}
           <div className="flex items-center justify-between py-3">
             <h1 className="hh-large-title" style={{ color: "var(--label-primary)", fontWeight: 500 }}>
-              Sumar
+              {activeTab === "profile" ? "Setari" : "Sumar"}
             </h1>
-            <div className="flex items-center gap-1">
-              <ThemeToggle />
-              {/* Force Refresh — unregisters SW, clears all caches, reloads */}
-              <button
-                onClick={async () => {
-                  try {
-                    // 1. Unregister ALL service workers (not just update)
-                    const regs = await navigator.serviceWorker?.getRegistrations();
-                    if (regs) await Promise.all(regs.map(r => r.unregister()));
-                  } catch {}
-                  try {
-                    // 2. Delete all caches
-                    if (typeof caches !== "undefined") {
-                      const keys = await caches.keys();
-                      await Promise.all(keys.map(k => caches.delete(k)));
-                    }
-                  } catch {}
-                  // 3. Hard reload (bypass HTTP cache too)
-                  window.location.href = window.location.pathname + "?t=" + Date.now();
-                }}
-                className="pill text-[13px] flex items-center gap-1.5"
-                title="Forteaza actualizare — sterge cache si reincarca"
-              >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2" />
-                </svg>
-                <span className="hidden sm:inline">Actualizeaza</span>
-              </button>
-              <button onClick={() => setShowActions(!showActions)} className="pill text-[13px]">
-                &#x22EF;
-              </button>
-              {showActions && (
-                <div className="flex items-center gap-1 animate-in">
-                  <ShareCard metrics={metrics} sleepNights={sleepNights} />
-                  <PDFExport metrics={metrics} sleepNights={sleepNights} />
-                  <CSVExport metrics={metrics} sleepNights={sleepNights} />
-                  <button onClick={handleExport} className="pill text-[11px]" title="Exporta JSON">{"\ud83d\udce4"}</button>
-                  <button onClick={handleReset} className="text-[11px] px-2 py-1" style={{ color: "rgba(255,59,48,0.6)" }}>Sterge</button>
-                </div>
-              )}
+            <ThemeToggle />
+          </div>
+          {activeTab !== "profile" && (
+            <div className="pb-2">
+              <DateRangePicker />
             </div>
-          </div>
-          {/* Date range */}
-          <div className="pb-2">
-            <DateRangePicker />
-          </div>
+          )}
         </div>
       </header>
 
@@ -662,13 +606,313 @@ function BrowseTab({
 
 // ═══ PROFILE TAB ═══
 function ProfileTab() {
+  const router = useRouter();
+  const { metrics, sleepNights, meta, setData, setLoading, setParseProgress, clearData: clearStore } = useHealthStore();
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [importStatus, setImportStatus] = useState<string>("");
+  const [importProgress, setImportProgress] = useState(0);
+  const [importError, setImportError] = useState("");
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
+  const handleImport = useCallback(async (file: File) => {
+    setImportError("");
+    setImportStatus("Se citeste fisierul...");
+    setImportProgress(0);
+    try {
+      let buffer: ArrayBuffer;
+      if (file.name.endsWith(".zip")) {
+        setImportStatus("Se extrage ZIP...");
+        const zip = await JSZip.loadAsync(file);
+        let xmlFile = zip.file("apple_health_export/export.xml") || zip.file("export.xml");
+        if (!xmlFile) {
+          const found = Object.keys(zip.files).find(f => f.endsWith("export.xml") && !f.endsWith("export_cda.xml"));
+          if (found) xmlFile = zip.file(found);
+        }
+        if (!xmlFile) throw new Error("Nu s-a gasit export.xml in ZIP");
+        setImportStatus("Se decomprima XML...");
+        buffer = await xmlFile.async("arraybuffer");
+      } else if (file.name.endsWith(".xml")) {
+        buffer = await file.arrayBuffer();
+      } else if (file.name.endsWith(".json")) {
+        setImportStatus("Se importa din JSON...");
+        const text = await file.text();
+        const data = JSON.parse(text);
+        if (!data.meta || !data.metrics) throw new Error("Format JSON invalid");
+        await saveHealthData(data.metrics, data.sleepNights || [], data.meta);
+        // Reload all data from DB
+        const freshMeta = await getMeta();
+        if (freshMeta) {
+          const freshMetrics: Record<string, DailySummary[]> = {};
+          for (const key of freshMeta.availableMetrics) {
+            if (key === "sleepAnalysis") continue;
+            freshMetrics[key] = await getMetricData(key);
+          }
+          const freshSleep = await getSleepData();
+          setData(freshMetrics, freshSleep, freshMeta);
+        }
+        setImportStatus("");
+        return;
+      } else {
+        throw new Error("Accepta doar .zip, .xml sau .json");
+      }
+
+      if (buffer.byteLength < 100) throw new Error("Fisierul pare gol");
+      const sizeMB = (buffer.byteLength / 1024 / 1024).toFixed(0);
+      setImportStatus(`Se proceseaza ${sizeMB}MB...`);
+
+      parseHealthBuffer(
+        buffer,
+        (percent) => {
+          setImportProgress(percent);
+          if (percent < 85) setImportStatus(`Se proceseaza... ${percent}%`);
+          else if (percent < 95) setImportStatus("Se calculeaza sumarele zilnice...");
+          else setImportStatus("Aproape gata...");
+        },
+        async (result) => {
+          setImportStatus("Se salveaza...");
+          await saveHealthData(result.summaries, result.sleepNights, result.meta);
+          // Reload ALL data from DB (merged)
+          const freshMeta = await getMeta();
+          if (freshMeta) {
+            const freshMetrics: Record<string, DailySummary[]> = {};
+            for (const key of freshMeta.availableMetrics) {
+              if (key === "sleepAnalysis") continue;
+              freshMetrics[key] = await getMetricData(key);
+            }
+            const freshSleep = await getSleepData();
+            setData(freshMetrics, freshSleep, freshMeta);
+          }
+          setImportStatus("");
+          setImportProgress(0);
+        },
+        (errMsg) => {
+          setImportError(errMsg);
+          setImportStatus("");
+          setImportProgress(0);
+        }
+      );
+    } catch (err) {
+      setImportError(err instanceof Error ? err.message : "Eroare la import");
+      setImportStatus("");
+      setImportProgress(0);
+    }
+  }, [setData]);
+
+  const handleExportJSON = useCallback(async () => {
+    const json = await exportAllData();
+    const blob = new Blob([json], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `vitalstat-export-${new Date().toISOString().substring(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, []);
+
+  const handleDelete = useCallback(async () => {
+    await clearData();
+    clearStore();
+    router.push("/");
+  }, [clearStore, router]);
+
+  const dataInfo = meta ? {
+    start: meta.dateRange.start,
+    end: meta.dateRange.end,
+    metrics: meta.availableMetrics.filter(k => k !== "sleepAnalysis").length,
+    records: meta.totalRecords,
+  } : null;
+
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      <div className="hh-section-label"><span>Profil</span></div>
+    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+
+      {/* ── 1. PROFIL PERSONAL ── */}
       <ProfileSetup shouldShow={true} alwaysShow={true} />
+
+      {/* ── 2. DATELE TALE ── */}
+      <div className="hh-card" style={{ padding: 20 }}>
+        <p className="hh-caption" style={{ color: "var(--label-tertiary)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 4 }}>
+          Datele tale
+        </p>
+        <p className="hh-footnote" style={{ color: "var(--label-secondary)", marginBottom: 16 }}>
+          Totul ramane pe dispozitivul tau — nu trimitem nimic nicaieri.
+        </p>
+
+        {/* Data summary */}
+        {dataInfo && (
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}>
+            <div style={{ padding: 12, background: "var(--surface-2)", borderRadius: 12 }}>
+              <div className="hh-footnote" style={{ color: "var(--label-tertiary)", marginBottom: 2 }}>Perioada</div>
+              <div style={{ fontSize: 13, fontWeight: 600, color: "var(--label-primary)" }}>
+                {dataInfo.start.substring(5)} — {dataInfo.end.substring(5)}
+              </div>
+            </div>
+            <div style={{ padding: 12, background: "var(--surface-2)", borderRadius: 12 }}>
+              <div className="hh-footnote" style={{ color: "var(--label-tertiary)", marginBottom: 2 }}>Metrici</div>
+              <div style={{ fontSize: 13, fontWeight: 600, color: "var(--label-primary)" }}>
+                {dataInfo.metrics} tipuri · {dataInfo.records.toLocaleString("ro")} inregistrari
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Import new data */}
+        <input
+          ref={fileRef}
+          type="file"
+          accept=".zip,.xml,.json"
+          onChange={(e) => { const f = e.target.files?.[0]; if (f) handleImport(f); e.target.value = ""; }}
+          className="hidden"
+          style={{ display: "none" }}
+        />
+
+        <button
+          type="button"
+          onClick={() => fileRef.current?.click()}
+          disabled={!!importStatus}
+          style={{
+            width: "100%", padding: "14px 16px", borderRadius: 12,
+            background: "var(--accent)", color: "#fff",
+            fontSize: 15, fontWeight: 700, border: "none", cursor: "pointer",
+            display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+            opacity: importStatus ? 0.6 : 1,
+          }}
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+            <polyline points="17 8 12 3 7 8" />
+            <line x1="12" y1="3" x2="12" y2="15" />
+          </svg>
+          Importa date noi
+        </button>
+        <p className="hh-footnote" style={{ color: "var(--label-tertiary)", marginTop: 6, fontSize: 11, textAlign: "center" }}>
+          Accepta .zip sau .xml din Apple Health, sau .json exportat
+        </p>
+
+        {/* Import progress */}
+        {importStatus && (
+          <div style={{ marginTop: 12 }}>
+            <p className="hh-footnote" style={{ color: "var(--label-secondary)", marginBottom: 6 }}>{importStatus}</p>
+            {importProgress > 0 && (
+              <div style={{ width: "100%", height: 4, background: "var(--surface-2)", borderRadius: 2, overflow: "hidden" }}>
+                <div style={{ width: `${importProgress}%`, height: "100%", background: "var(--accent)", borderRadius: 2, transition: "width 0.3s" }} />
+              </div>
+            )}
+          </div>
+        )}
+        {importError && (
+          <p className="hh-footnote" style={{ color: "var(--danger)", marginTop: 8 }}>{importError}</p>
+        )}
+
+        {/* Divider */}
+        <div style={{ height: 1, background: "var(--separator)", margin: "16px 0" }} />
+
+        {/* Export actions */}
+        <p className="hh-caption" style={{ color: "var(--label-tertiary)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 10, fontSize: 11 }}>
+          Exporta
+        </p>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+          <button
+            type="button"
+            onClick={handleExportJSON}
+            className="pill"
+            style={{ padding: "12px", fontSize: 13, fontWeight: 600, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}
+          >
+            <span style={{ fontSize: 16 }}>{"\ud83d\udce4"}</span> JSON backup
+          </button>
+          <PDFExport metrics={metrics} sleepNights={sleepNights} label="Raport PDF" />
+          <CSVExport metrics={metrics} sleepNights={sleepNights} label="CSV / Excel" />
+          <ShareCard metrics={metrics} sleepNights={sleepNights} label="Card imagine" />
+        </div>
+      </div>
+
+      {/* ── 3. APLICATIE ── */}
+      <div className="hh-card" style={{ padding: 20 }}>
+        <p className="hh-caption" style={{ color: "var(--label-tertiary)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 12 }}>
+          Aplicatie
+        </p>
+
+        {/* Force refresh */}
+        <button
+          type="button"
+          onClick={async () => {
+            try {
+              const regs = await navigator.serviceWorker?.getRegistrations();
+              if (regs) await Promise.all(regs.map(r => r.unregister()));
+            } catch {}
+            try {
+              if (typeof caches !== "undefined") {
+                const keys = await caches.keys();
+                await Promise.all(keys.map(k => caches.delete(k)));
+              }
+            } catch {}
+            window.location.href = window.location.pathname + "?t=" + Date.now();
+          }}
+          className="pill"
+          style={{ width: "100%", padding: "12px 16px", fontSize: 13, fontWeight: 600, display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2" />
+          </svg>
+          Forteaza actualizare aplicatie
+        </button>
+
+        <div style={{ height: 1, background: "var(--separator)", margin: "12px 0" }} />
+
+        {/* Delete data */}
+        {!confirmDelete ? (
+          <button
+            type="button"
+            onClick={() => setConfirmDelete(true)}
+            style={{
+              width: "100%", padding: "12px 16px", borderRadius: 12,
+              background: "transparent", border: "1px solid var(--danger)",
+              color: "var(--danger)", fontSize: 13, fontWeight: 600, cursor: "pointer",
+              display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+            }}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="3 6 5 6 21 6" />
+              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+            </svg>
+            Sterge toate datele
+          </button>
+        ) : (
+          <div style={{ padding: 14, background: "rgba(255,59,48,0.08)", borderRadius: 12, border: "1px solid var(--danger)" }}>
+            <p className="hh-footnote" style={{ color: "var(--danger)", fontWeight: 600, marginBottom: 10 }}>
+              Esti sigur? Toate datele importate vor fi sterse permanent.
+            </p>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button
+                type="button"
+                onClick={handleDelete}
+                style={{
+                  flex: 1, padding: "10px", borderRadius: 10,
+                  background: "var(--danger)", color: "#fff",
+                  fontSize: 13, fontWeight: 700, border: "none", cursor: "pointer",
+                }}
+              >
+                Da, sterge tot
+              </button>
+              <button
+                type="button"
+                onClick={() => setConfirmDelete(false)}
+                className="pill"
+                style={{ flex: 1, padding: "10px", fontSize: 13, fontWeight: 600 }}
+              >
+                Anuleaza
+              </button>
+            </div>
+          </div>
+        )}
+
+        <p className="hh-footnote" style={{ color: "var(--label-tertiary)", marginTop: 16, textAlign: "center", fontSize: 11 }}>
+          VitalStat · 100% privat · Datele raman pe dispozitiv
+        </p>
+      </div>
     </div>
   );
 }
+
 
 // ═══ SLEEP TAB ═══
 function SleepTab({ metrics, sleepNights, allMetrics, allSleep }: { metrics: Record<string, DailySummary[]>; sleepNights: SleepNight[]; allMetrics: Record<string, DailySummary[]>; allSleep: SleepNight[] }) {

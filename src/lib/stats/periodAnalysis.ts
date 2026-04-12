@@ -498,7 +498,7 @@ function analyzeMorningQuality(
 
     if (rhr !== undefined && rhr < rhrMedian) score++;
     if (hrv !== undefined && hrv > hrvMedian) score++;
-    if (night.efficiency > 85) score++;
+    if (night.efficiency > 0.85) score++;
     const deepPct = night.totalMinutes > 0 ? (night.stages.deep / night.totalMinutes) * 100 : 0;
     if (deepPct > 15) score++;
 
@@ -740,13 +740,17 @@ function generateSelfSignals(
       const mk = mannKendall(values);
       if (!mk || !mk.significant) continue;
 
-      const yearDelta = mk.sensSlope * 365;
+      // Convert sensSlope (per-observation) to per-year using actual data density
+      const sorted = [...data].sort((a, b) => a.date.localeCompare(b.date));
+      const spanDays = (new Date(sorted[sorted.length - 1].date).getTime() - new Date(sorted[0].date).getTime()) / 86400000;
+      const obsPerYear = spanDays > 0 ? (data.length / spanDays) * 365 : 365;
+      const yearDelta = mk.sensSlope * obsPerYear;
       const improving = tm.better === "up" ? yearDelta > 0 : yearDelta < 0;
 
       signals.push({
         icon: improving ? "🌱" : "📉",
         title: `Tendinta ${tm.label} pe 1 an`,
-        narrative: `${tm.label}-ul tau s-a ${yearDelta > 0 ? "crescut" : "scazut"} cu ${roundRo(Math.abs(yearDelta), 1)} ${tm.unit} pe an. ${improving ? "Directie excelenta — corpul tau se imbunatateste." : "Directie nefavorabila — merita investigat cauzele."}`,
+        narrative: `${tm.label}-ul tau a ${yearDelta > 0 ? "crescut" : "scazut"} cu ${roundRo(Math.abs(yearDelta), 1)} ${tm.unit} pe an. ${improving ? "Directie excelenta — corpul tau se imbunatateste." : "Directie nefavorabila — merita investigat cauzele."}`,
       });
     }
   }

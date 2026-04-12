@@ -255,18 +255,21 @@ export function ShareDailyReport({ date, metrics, sleepNights }: Props) {
       disabled={busy}
       className="pill"
       style={{
-        padding: "10px 18px",
-        fontSize: 14,
-        fontWeight: 600,
+        padding: "4px 10px",
+        fontSize: 12,
+        fontWeight: 500,
         display: "inline-flex",
         alignItems: "center",
-        gap: 8,
-        background: "var(--accent)",
-        color: "#fff",
+        gap: 4,
+        color: "var(--accent)",
+        opacity: busy ? 0.5 : 1,
       }}
       title="Descarca raportul ca imagine (format Story)"
     >
-      {busy ? "Se genereaza..." : "Descarca imagine raport"}
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
+      </svg>
+      {busy ? "..." : "Raport"}
     </button>
   );
 }

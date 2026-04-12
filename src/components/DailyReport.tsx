@@ -9,8 +9,6 @@ import { generateSmartInsights } from "@/lib/stats/smartInsights";
 import { LineChart, Line, ResponsiveContainer, ReferenceDot } from "recharts";
 import { ShareDailyReport } from "./ShareDailyReport";
 import { RecoveryRootCause } from "./RecoveryRootCause";
-import { LaggedCausality } from "./LaggedCausality";
-import { BestDayPredictor } from "./BestDayPredictor";
 
 interface DailyReportProps {
   date: string; // "YYYY-MM-DD"
@@ -160,7 +158,7 @@ export function DailyReport({ date, metrics, sleepNights }: DailyReportProps) {
       filtered[key] = data.filter(d => d.date <= date);
     }
     const filteredSleep = sleepNights.filter(n => n.date <= date);
-    return generateSmartInsights(filtered, filteredSleep, metrics, sleepNights, 7).slice(0, 3);
+    return generateSmartInsights(filtered, filteredSleep, metrics, sleepNights, 7).slice(0, 5);
   }, [metrics, sleepNights, date]);
 
   const energyColor = getEnergyColor(recovery.total);
@@ -174,13 +172,13 @@ export function DailyReport({ date, metrics, sleepNights }: DailyReportProps) {
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }} className="animate-in">
       {/* Header */}
       <div style={{ textAlign: "center", paddingBottom: 4 }}>
-        <h2 className="hh-headline" style={{ fontSize: 20, fontWeight: 600, color: "var(--label-primary)", textTransform: "capitalize" }}>
-          {dayLabel}
-        </h2>
-        <p className="hh-caption" style={{ color: "var(--label-tertiary)", marginTop: 2 }}>{date}</p>
-        <div style={{ marginTop: 10, display: "flex", justifyContent: "center" }}>
+        <div className="flex items-center justify-center gap-2">
+          <h2 className="hh-headline" style={{ fontSize: 20, fontWeight: 600, color: "var(--label-primary)", textTransform: "capitalize" }}>
+            {dayLabel}
+          </h2>
           <ShareDailyReport date={date} metrics={metrics} sleepNights={sleepNights} />
         </div>
+        <p className="hh-caption" style={{ color: "var(--label-tertiary)", marginTop: 2 }}>{date}</p>
       </div>
 
       {/* Energy Score — compact Apple card */}
@@ -318,12 +316,6 @@ export function DailyReport({ date, metrics, sleepNights }: DailyReportProps) {
           );
         })()}
       </div>
-
-      {/* Lagged causality */}
-      <LaggedCausality metrics={metrics} sleepNights={sleepNights} />
-
-      {/* Best day predictor */}
-      <BestDayPredictor metrics={metrics} sleepNights={sleepNights} />
 
       {/* Insights */}
       {topInsights.length > 0 && (

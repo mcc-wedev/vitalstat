@@ -229,8 +229,8 @@ function overtrainingDetection(metrics: Record<string, DailySummary[]>, sleep: S
   if (hrvDeclining && rhrRising && highLoad) {
     out.push({
       id: "overtraining-alert", category: "training", severity: "critical", priority: 95,
-      title: "Pattern de supraantrenament",
-      body: `14 zile: HRV ↓ (τ=${hrvMk.tau.toFixed(2)}), RHR ↑ (τ=${rhrMk.tau.toFixed(2)}), volum ${roundRo(mean(ex!.slice(-14).map(d => d.sum)))} min/zi. Tripleta clasica de overreaching (${cite("meeusen2013")}). Deload 7-10 zile: −50% volum, −30% intensitate (${cite("halson2014")}).`,
+      title: "Tipar de supraantrenament",
+      body: `14 zile: HRV ↓ (τ=${hrvMk.tau.toFixed(2)}), RHR ↑ (τ=${rhrMk.tau.toFixed(2)}), volum ${roundRo(mean(ex!.slice(-14).map(d => d.sum)))} min/zi. Tripleta clasica de suprasolicitare (${cite("meeusen2013")}). Saptamana usoara 7-10 zile: −50% volum, −30% intensitate (${cite("halson2014")}).`,
     });
   } else if (hrvDeclining && rhrRising) {
     out.push({
@@ -263,7 +263,7 @@ function spo2Screening(metrics: Record<string, DailySummary[]>): SmartInsight[] 
     out.push({
       id: "spo2-dips", category: "sleep", severity: "warning", priority: 82,
       title: `SpO2 nocturn scade sub 90%`,
-      body: `Minim ${minPct.toFixed(0)}% inregistrat in ultimele 7 nopti. Desaturari sub 90% sunt marker de screening pentru apnee obstructiva de somn. Daca sforaiti sau aveti somnolenta diurna, discutati cu un medic somnolog.`,
+      body: `Minim ${minPct.toFixed(0)}% inregistrat in ultimele 7 nopti. Desaturari sub 90% sunt indicator de apnee obstructiva de somn. Daca sforaiti sau aveti somnolenta in timpul zilei, discutati cu un medic somnolog.`,
     });
   }
   return out;
@@ -294,7 +294,7 @@ function autonomicBalance(metrics: Record<string, DailySummary[]>, allMetrics: R
     out.push({
       id: "autonomic-shift", category: "cardio", severity: "warning", priority: 72,
       title: `Echilibru autonom perturbat`,
-      body: `Raportul HRV/RHR a scazut ${Math.abs(ratioPctChange).toFixed(0)}% fata de baseline-ul tau (${ratio.toFixed(2)} vs ${ratioBaseline.toFixed(2)}). Dominanta simpatica crescuta — stres acut, somn slab sau boala incipienta. Prioritati: somn ≥7h, reducere stimulente seara.`,
+      body: `Raportul HRV/RHR a scazut ${Math.abs(ratioPctChange).toFixed(0)}% fata de media ta (${ratio.toFixed(2)} vs ${ratioBaseline.toFixed(2)}). Activare simpatica crescuta — stres, somn insuficient sau boala incipienta. Prioritati: somn ≥7h, fara stimulente seara.`,
     });
   } else if (rhrRecent < 55 && hrvRecent > 50) {
     out.push({
@@ -340,7 +340,7 @@ function sleepArchitecture(sleep: SleepNight[], metrics: Record<string, DailySum
     out.push({
       id: "sleep-rem-low", category: "sleep", severity: "warning", priority: 68,
       title: `REM ${avgRem.toFixed(0)}% — sub optim`,
-      body: `Target: 20-25%. REM este critic pentru procesare emotionala, creativitate si consolidare procedurala. Deficit de REM asociat cu reactivitate emotionala crescuta si dificultati de concentrare. Cauze frecvente: trezire cu alarma (REM domina a doua jumatate a noptii), alcool, antidepresive.`,
+      body: `Target: 20-25%. REM este critic pentru procesare emotionala, creativitate si consolidare procedurala. Deficit de REM asociat cu reactivitate emotionala crescuta si dificultati de concentrare. Cauze frecvente: trezire cu alarma (somnul REM domina a doua jumatate a noptii), alcool, antidepresive.`,
     });
   }
 
@@ -371,7 +371,7 @@ function sleepLatency(sleep: SleepNight[]): SmartInsight[] {
     out.push({
       id: "sleep-latency-high", category: "sleep", severity: "warning", priority: 70,
       title: `~${Math.round(avgLatency)} min treaz in pat/noapte`,
-      body: `Timp mediu treaz in pat: ${Math.round(avgLatency)} min (tinta: <20 min, ${cite("ohayon2017")}). Latenta de adormire prelungita este marker de hiperactivare cognitiva (anxietate, ruminare). Interventii: tehnica 4-7-8 de respiratie, regula "daca nu adormi in 20 min, ridica-te", journaling inainte de culcare.`,
+      body: `Timp mediu treaz in pat: ${Math.round(avgLatency)} min (tinta: <20 min, ${cite("ohayon2017")}). Latenta de adormire prelungita este indicator de hiperactivare cognitiva (anxietate, ganduri repetitive). Interventii: respiratie 4-7-8, regula "daca nu adormi in 20 min, ridica-te", jurnal scris inainte de culcare.`,
     });
   } else if (avgLatency < 5 && mean(recent.map(n => n.totalMinutes / 60)) < 7) {
     out.push({
@@ -421,7 +421,7 @@ function circadianStability(sleep: SleepNight[]): SmartInsight[] {
     out.push({
       id: "circadian-unstable", category: "sleep", severity: "warning", priority: 71,
       title: `Ora de culcare instabila (±${(bedtimeStd * 60).toFixed(0)} min)`,
-      body: `Deviatie standard: ${bedtimeStd.toFixed(1)}h. Variatie >1h este asociata cu risc metabolic si cardiovascular crescut independent de durata somnului (${cite("wittmann2006")}). Obiectiv: bedtime constant ±30 min, inclusiv weekend.`,
+      body: `Deviatie standard: ${bedtimeStd.toFixed(1)}h. Variatie >1h este asociata cu risc metabolic si cardiovascular crescut independent de durata somnului (${cite("wittmann2006")}). Obiectiv: ora de culcare constanta ±30 min, inclusiv weekend.`,
     });
   }
 
@@ -430,8 +430,8 @@ function circadianStability(sleep: SleepNight[]): SmartInsight[] {
     if (sjl > 1) {
       out.push({
         id: "social-jetlag", category: "sleep", severity: "warning", priority: 64,
-        title: `Social jet lag: ${(sjl * 60).toFixed(0)} min`,
-        body: `Diferenta bedtime weekend vs weekday: ${sjl.toFixed(1)}h. Social jet lag >1h este asociat cu obezitate, depresie si performanta cognitiva redusa (${cite("wittmann2006")}). Reduceti treptat: 15 min/saptamana.`,
+        title: `Decalaj circadian weekend: ${(sjl * 60).toFixed(0)} min`,
+        body: `Diferenta ora de culcare weekend vs zilele de lucru: ${sjl.toFixed(1)}h. Decalajul circadian >1h este asociat cu obezitate, depresie si performanta cognitiva redusa (${cite("wittmann2006")}). Reduceti treptat: 15 min/saptamana.`,
       });
     }
   }
@@ -479,7 +479,7 @@ function sleepDebtNarrative(sleep: SleepNight[], metrics: Record<string, DailySu
     out.push({
       id: "sleep-optimal", category: "sleep", severity: "positive", priority: 12,
       title: `Somn ${avg.toFixed(1)}h — zona optima`,
-      body: `In intervalul 7-9h (${cite("nsf2015")}). Mentineti consistenta bedtime ±30 min (${cite("wittmann2006")}).`,
+      body: `In intervalul 7-9h (${cite("nsf2015")}). Mentineti ora de culcare constanta ±30 min (${cite("wittmann2006")}).`,
     });
   }
   return out;
@@ -543,7 +543,7 @@ function stressComposite(metrics: Record<string, DailySummary[]>, sleep: SleepNi
   } else if (stressPct === 0 && totalSignals >= 3) {
     out.push({
       id: "stress-low", category: "cardio", severity: "positive", priority: 15,
-      title: `Stres fiziologic scazut — toti markerii in parametri`,
+      title: `Stres fiziologic scazut — toti indicatorii in parametri`,
       body: `0/${totalSignals} semnale de stres. Echilibru autonom bun, somn adecvat, recuperare normala.`,
     });
   }
@@ -655,7 +655,7 @@ function personalNorms(metrics: Record<string, DailySummary[]>, profile: Profile
         out.push({
           id: "hrv-low-pct", category: "cardio", severity: "warning", priority: 60,
           title: `HRV ${roundRo(hrvVal)} ms — P${Math.round(pct)}`,
-          body: `Sfertul inferior ${sexRo} ${profile.age} ani (${cite("nunan2010")}). Bedtime constant, reducere alcool, zona 2 aerob. Raspuns in 8-12 sapt (${cite("buchheit2014")}).`,
+          body: `Sfertul inferior ${sexRo} ${profile.age} ani (${cite("nunan2010")}). Ora de culcare constanta, reducere alcool, cardio moderat. Raspuns in 8-12 sapt (${cite("buchheit2014")}).`,
         });
       } else if (pct >= 75) {
         out.push({
@@ -744,14 +744,14 @@ function cardiacEfficiency(metrics: Record<string, DailySummary[]>, profile: Pro
   if (pctMaxHR > 65) {
     out.push({
       id: "cardiac-cost-high", category: "cardio", severity: "warning", priority: 56,
-      title: `Puls de mers ${Math.round(avgWalkHR)} bpm (${pctMaxHR.toFixed(0)}% din HR max)`,
-      body: `Costul cardiac al mersului este ridicat — ar trebui sa fie sub 60% din HR max estimat (${Math.round(maxHR)} bpm, Tanaka 2001). Posibil: deconditonare, stres termic, deshidratare. Imbunatatire: mers progresiv 30 min/zi, 5×/sapt.`,
+      title: `Puls de mers ${Math.round(avgWalkHR)} bpm (${pctMaxHR.toFixed(0)}% din pulsul maxim)`,
+      body: `Costul cardiac al mersului este ridicat — ar trebui sa fie sub 60% din pulsul maxim estimat (${Math.round(maxHR)} bpm, Tanaka 2001). Posibil: lipsa de antrenament, stres termic, deshidratare. Imbunatatire: mers progresiv 30 min/zi, 5×/sapt.`,
     });
   } else if (pctMaxHR < 45) {
     out.push({
       id: "cardiac-cost-low", category: "cardio", severity: "positive", priority: 18,
       title: `Eficienta cardiaca excelenta la mers`,
-      body: `Puls ${Math.round(avgWalkHR)} bpm = ${pctMaxHR.toFixed(0)}% din HR max. Cost cardiac scazut indica capacitate aeroba buna.`,
+      body: `Puls ${Math.round(avgWalkHR)} bpm = ${pctMaxHR.toFixed(0)}% din pulsul maxim. Cost cardiac scazut indica capacitate aeroba buna.`,
     });
   }
   return out;
@@ -810,8 +810,8 @@ function fitnessFormNarrative(metrics: Record<string, DailySummary[]>): SmartIns
   if (state.tone === "overreaching") {
     out.push({
       id: "banister-overreach", category: "training", severity: "critical", priority: 88,
-      title: "Forma negativa — oboseala > fitness",
-      body: `Form=${last.form.toFixed(0)} (fitness ${last.fitness.toFixed(0)}, fatigue ${last.fatigue.toFixed(0)}). Deload 7-10 zile: −50% volum, −30% intensitate. Supercompensare la 10-14 zile (${cite("banister1975")}).`,
+      title: "Forma negativa — oboseala depaseste fitness-ul",
+      body: `Scor forma: ${last.form.toFixed(0)} (fitness ${last.fitness.toFixed(0)}, oboseala ${last.fatigue.toFixed(0)}). Saptamana usoara 7-10 zile: −50% volum, −30% intensitate. Supercompensare la 10-14 zile (${cite("banister1975")}).`,
     });
   } else if (state.tone === "rested") {
     out.push({
@@ -875,7 +875,7 @@ function trainingEffectiveness(metrics: Record<string, DailySummary[]>): SmartIn
     out.push({
       id: "training-inefficient", category: "training", severity: "info", priority: 48,
       title: `Volum ↑ dar RHR nu se imbunatateste`,
-      body: `Exercitiu +${exChange.toFixed(0)} min/zi dar RHR +${rhrChange.toFixed(0)} bpm. Posibil: intensitate prea mare fara baza aeroba, somn insuficient, sau stres cronic care anuleaza adaptarea. Pivotati spre zona 2 (65-75% HR max).`,
+      body: `Exercitiu +${exChange.toFixed(0)} min/zi dar RHR +${rhrChange.toFixed(0)} bpm. Posibil: intensitate prea mare fara baza aeroba, somn insuficient, sau stres cronic care anuleaza adaptarea. Treceti pe zona 2 (65-75% din pulsul maxim).`,
     });
   }
 
@@ -906,7 +906,7 @@ function volatilityNarrative(metrics: Record<string, DailySummary[]>): SmartInsi
     out.push({
       id: "hrv-unstable", category: "cardio", severity: "warning", priority: 50,
       title: `HRV instabil — CV ${cv.toFixed(0)}%`,
-      body: `Peste pragul de 14%. Variabilitate zi-de-zi = marker overreaching mai puternic decat media absoluta (${cite("plews2013")}). Stabilizati bedtime ±30 min.`,
+      body: `Peste pragul de 14%. Variabilitatea zi-de-zi este un indicator de suprasolicitare mai puternic decat media absoluta (${cite("plews2013")}). Stabilizati ora de culcare ±30 min.`,
     });
   }
   return out;
@@ -958,8 +958,8 @@ function weekendWeekdayGap(sleep: SleepNight[]): SmartInsight[] {
   if (gap > 1) {
     out.push({
       id: "weekend-oversleep", category: "sleep", severity: "info", priority: 40,
-      title: `Weekend +${gap.toFixed(1)}h somn vs weekday`,
-      body: `Weekday ${wdAvg.toFixed(1)}h vs weekend ${weAvg.toFixed(1)}h. Gap >1h indica deficit acumulat in cursul saptamanii. Nu se "recupereaza" — efectele cognitive sunt cumulative (${cite("vanDongen2003")}). Solutia: +30 min in fiecare noapte weekday.`,
+      title: `Weekend +${gap.toFixed(1)}h somn vs zilele de lucru`,
+      body: `Zilele de lucru: ${wdAvg.toFixed(1)}h, weekend: ${weAvg.toFixed(1)}h. Diferenta >1h indica deficit acumulat in timpul saptamanii. Somnul de weekend nu compenseaza — efectele cognitive sunt cumulative (${cite("vanDongen2003")}). Solutia: +30 min in fiecare noapte de lucru.`,
     });
   }
   return out;
@@ -992,13 +992,13 @@ function activityConsistency(metrics: Record<string, DailySummary[]>): SmartInsi
     out.push({
       id: "activity-erratic", category: "activity", severity: "info", priority: 38,
       title: `Activitate foarte variabila (CV ${cv.toFixed(0)}%)`,
-      body: `Alternati zile foarte active cu zile sedentare. Pattern-uri "feast or famine" sunt mai putin benefice decat activitate constanta moderata. Obiectiv: minim 5,000 pasi in fiecare zi, inclusiv zilele "de odihna" (${cite("paluch2022")}).`,
+      body: `Alternati zile foarte active cu zile sedentare. Acest tipar "tot sau nimic" este mai putin benefic decat miscarea constanta zilnica. Obiectiv: minim 5.000 pasi in fiecare zi, inclusiv zilele de odihna (${cite("paluch2022")}).`,
     });
   } else if (cv < 25) {
     out.push({
       id: "activity-consistent", category: "activity", severity: "positive", priority: 12,
       title: `Activitate constanta (CV ${cv.toFixed(0)}%)`,
-      body: `Pattern regulat de miscare — mai benefic pentru sanatatea metabolica decat volumul total (${cite("paluch2022")}).`,
+      body: `Tipar regulat de miscare — mai benefic pentru sanatatea metabolica decat volumul total (${cite("paluch2022")}).`,
     });
   }
   return out;
@@ -1025,7 +1025,7 @@ function vo2Trajectory(metrics: Record<string, DailySummary[]>, allMetrics: Reco
     title: `VO2 Max ${mk.tau > 0 ? "↑" : "↓"} ${change > 0 ? "+" : ""}${change.toFixed(1)}`,
     body: mk.tau > 0
       ? `+1 MET = −13% mortalitate cardiovasculara (${cite("kodama2009")}).`
-      : `Declin natural: ~1/an dupa 25 ani. Peste acest ritm = deconditonare. Zona 2 aerob 3×/sapt (${cite("acsm2021")}).`,
+      : `Declin natural: ~1/an dupa 25 ani. Peste acest ritm = lipsa de antrenament. Cardio zona 2, 3×/sapt (${cite("acsm2021")}).`,
   });
   return out;
 }
@@ -1044,7 +1044,7 @@ function respiratoryFitness(metrics: Record<string, DailySummary[]>): SmartInsig
     out.push({
       id: "resp-rising", category: "cardio", severity: "info", priority: 42,
       title: `Rata respiratorie in crestere`,
-      body: `Trend ascendent semnificativ (τ=${mk.tau.toFixed(2)}). Cauze posibile: deconditonare, anxietate cronica, anemie. Daca nu se explica prin altceva, merit investigat.`,
+      body: `Trend ascendent semnificativ (τ=${mk.tau.toFixed(2)}). Cauze posibile: lipsa de antrenament, anxietate cronica, anemie. Daca nu se explica prin altceva, merit investigat.`,
     });
   } else if (mk.tau < -0.2) {
     out.push({
@@ -1095,7 +1095,7 @@ function agingPaceNarrative(metrics: Record<string, DailySummary[]>): SmartInsig
     id: `aging-${mk.tau > 0 ? "slow" : "fast"}`, category: "cardio",
     severity: mk.tau > 0 ? "positive" : "warning", priority: mk.tau > 0 ? 40 : 60,
     title: mk.tau > 0 ? "Imbatranire autonoma incetinita" : "Imbatranire autonoma accelerata",
-    body: `ln(HRV) ${mk.tau > 0 ? "↑" : "↓"} (τ=${mk.tau.toFixed(2)}, p=${mk.pValue.toFixed(3)}). Normal: −0.5 ms/an dupa 25 ani (${cite("umetani1998")}). ${mk.tau > 0 ? "Directie opusa = adaptare pozitiva." : "Prioritati: somn + zona 2 aerob."}`,
+    body: `ln(HRV) ${mk.tau > 0 ? "↑" : "↓"} (τ=${mk.tau.toFixed(2)}, p=${mk.pValue.toFixed(3)}). Normal: −0.5 ms/an dupa 25 ani (${cite("umetani1998")}). ${mk.tau > 0 ? "Directie opusa = adaptare pozitiva." : "Prioritati: somn + cardio moderat."}`,
   });
   return out;
 }
@@ -1121,7 +1121,7 @@ function yearOverYearNarrative(metrics: Record<string, DailySummary[]>): SmartIn
     title: `VO2 Max ${delta > 0 ? "+" : ""}${delta.toFixed(1)} vs acum 1 an`,
     body: delta > 0
       ? `${p.toFixed(1)} → ${r.toFixed(1)} mL/kg/min. Imbunatatire reala (${cite("kodama2009")}).`
-      : `${p.toFixed(1)} → ${r.toFixed(1)}. ${Math.abs(delta) > 2 ? "Peste ritmul natural = deconditonare." : "Ritm normal imbatranire."} (${cite("acsm2021")})`,
+      : `${p.toFixed(1)} → ${r.toFixed(1)}. ${Math.abs(delta) > 2 ? "Peste ritmul natural = lipsa de antrenament." : "Ritm normal imbatranire."} (${cite("acsm2021")})`,
   });
   return out;
 }

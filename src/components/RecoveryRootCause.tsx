@@ -102,7 +102,7 @@ export function RecoveryRootCause({ date, metrics, sleepNights }: Props) {
     narrative = `Stabil fata de ieri (${yesterdayTotal} → ${todayTotal}). Semnalele se compenseaza reciproc.`;
   } else if (totalDelta < 0) {
     const dragPart = topDrag
-      ? `Cauza principala: ${topDrag.name} (${topDrag.delta >= 0 ? "+" : ""}${Math.round(topDrag.delta)} pct, contributie ${topDrag.weightedDelta.toFixed(1)} la total).`
+      ? `Cauza principala: ${topDrag.name} (${topDrag.weightedDelta.toFixed(1)} puncte).`
       : "";
     const liftPart = topLift && topLift.weightedDelta > 0.5
       ? ` Compensat partial de ${topLift.name} (+${topLift.weightedDelta.toFixed(1)}).`
@@ -110,7 +110,7 @@ export function RecoveryRootCause({ date, metrics, sleepNights }: Props) {
     narrative = `−${Math.abs(totalDelta)} puncte fata de ieri. ${dragPart}${liftPart}`;
   } else {
     const liftPart = topLift
-      ? `Factor principal: ${topLift.name} (+${Math.round(topLift.delta)} pct, ${topLift.weightedDelta.toFixed(1)} la total).`
+      ? `Factor principal: ${topLift.name} (+${topLift.weightedDelta.toFixed(1)} puncte).`
       : "";
     const dragPart = topDrag && topDrag.weightedDelta < -0.5
       ? ` Atenuat de ${topDrag.name} (${topDrag.weightedDelta.toFixed(1)}).`
@@ -146,7 +146,7 @@ export function RecoveryRootCause({ date, metrics, sleepNights }: Props) {
                   {mover.name}
                 </span>
                 <span className="hh-footnote hh-mono-num" style={{ color, fontWeight: 600 }}>
-                  {mover.weightedDelta > 0 ? "+" : ""}{mover.weightedDelta.toFixed(1)} pct
+                  {mover.weightedDelta > 0 ? "+" : ""}{mover.weightedDelta.toFixed(1)} pt
                 </span>
               </div>
               {/* Centered bar: left = drag, right = lift, zero at middle */}

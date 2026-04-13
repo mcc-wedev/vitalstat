@@ -45,6 +45,7 @@ import { Onboarding } from "@/components/Onboarding";
 import { ProfileSetup } from "@/components/ProfileSetup";
 import { clearData, exportAllData, saveHealthData, getMeta, getMetricData, getSleepData } from "@/lib/db/indexedDB";
 import { parseHealthBuffer } from "@/lib/parser/xmlParser";
+import { pullFromCloud, getWebhookInfo, getCloudConfig, setCloudConfig, type CloudSyncConfig, type SyncResult } from "@/lib/db/cloudSync";
 import JSZip from "jszip";
 
 // Bottom nav — Apple Health 3-tab pattern: Summary, Browse, Profile
@@ -613,6 +614,16 @@ function ProfileTab() {
   const [importProgress, setImportProgress] = useState(0);
   const [importError, setImportError] = useState("");
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [cloudConfig, setCloudConfigState] = useState<CloudSyncConfig>(() => getCloudConfig());
+  const [syncStatus, setSyncStatus] = useState<string>("");
+  const [syncResult, setSyncResult] = useState<SyncResult | null>(null);
+  const [webhookInfo, setWebhookInfo] = useState<{ url: string; token: string } | null>(null);
+  const [showSetup, setShowSetup] = useState(false);
+
+  // Load webhook info on mount
+  useEffect(() => {
+    getWebhookInfo().then(setWebhookInfo).catch(() => {});
+  }, []);
 
   /** Reload merged data from IndexedDB into Zustand store */
   const reloadFromDB = useCallback(async () => {
@@ -627,6 +638,25 @@ function ProfileTab() {
       setData(freshMetrics, freshSleep, freshMeta);
     }
   }, [setData]);
+
+  const handleCloudSync = useCallback(async (forceFull = false) => {
+    setSyncStatus("Se sincronizeaza...");
+    setSyncResult(null);
+    try {
+      const result = await pullFromCloud(forceFull);
+      setSyncResult(result);
+      if ((result.newMetrics > 0 || result.newSleep > 0) && !result.error) {
+        await reloadFromDB();
+        const cfg = { enabled: true, lastPullAt: new Date().toISOString() };
+        setCloudConfig(cfg);
+        setCloudConfigState(cfg);
+      }
+      setSyncStatus("");
+    } catch (err) {
+      setSyncResult({ newMetrics: 0, newSleep: 0, dateRange: null, error: err instanceof Error ? err.message : "Eroare sync" });
+      setSyncStatus("");
+    }
+  }, [reloadFromDB]);
 
   const handleImport = useCallback(async (file: File) => {
     setImportError("");
@@ -825,7 +855,131 @@ function ProfileTab() {
         </div>
       </div>
 
-      {/* ── 3. APLICATIE ── */}
+      {/* ── 3. SINCRONIZARE AUTOMATA ── */}
+      <div className="hh-card" style={{ padding: 20 }}>
+        <p className="hh-caption" style={{ color: "var(--label-tertiary)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 4 }}>
+          Sincronizare automata
+        </p>
+        <p className="hh-footnote" style={{ color: "var(--label-secondary)", marginBottom: 16 }}>
+          Primeste date zilnic fara export manual, via Health Auto Export.
+        </p>
+
+        {/* Sync button */}
+        <button
+          type="button"
+          onClick={() => handleCloudSync(false)}
+          disabled={!!syncStatus}
+          style={{
+            width: "100%", padding: "14px 16px", borderRadius: 12,
+            background: "var(--accent)", color: "#fff",
+            fontSize: 15, fontWeight: 700, border: "none", cursor: "pointer",
+            display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+            opacity: syncStatus ? 0.6 : 1,
+          }}
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2" />
+          </svg>
+          {syncStatus || "Sincronizeaza din cloud"}
+        </button>
+
+        {cloudConfig.lastPullAt && (
+          <p className="hh-footnote" style={{ color: "var(--label-tertiary)", marginTop: 6, fontSize: 11, textAlign: "center" }}>
+            Ultima sincronizare: {new Date(cloudConfig.lastPullAt).toLocaleString("ro-RO")}
+          </p>
+        )}
+
+        {/* Sync result */}
+        {syncResult && (
+          <div style={{ marginTop: 12, padding: 12, background: syncResult.error ? "rgba(255,59,48,0.08)" : "rgba(52,199,89,0.08)", borderRadius: 10 }}>
+            {syncResult.error ? (
+              <p className="hh-footnote" style={{ color: "var(--danger)" }}>{syncResult.error}</p>
+            ) : syncResult.newMetrics === 0 && syncResult.newSleep === 0 ? (
+              <p className="hh-footnote" style={{ color: "var(--label-secondary)" }}>Totul e la zi — nu sunt date noi.</p>
+            ) : (
+              <p className="hh-footnote" style={{ color: "rgb(52,199,89)" }}>
+                ✓ Adaugat {syncResult.newMetrics > 0 ? `${syncResult.newMetrics} zile metrici` : ""}{syncResult.newMetrics > 0 && syncResult.newSleep > 0 ? " + " : ""}{syncResult.newSleep > 0 ? `${syncResult.newSleep} nopti somn` : ""}
+              </p>
+            )}
+          </div>
+        )}
+
+        <div style={{ height: 1, background: "var(--separator)", margin: "16px 0" }} />
+
+        {/* Setup instructions */}
+        <button
+          type="button"
+          onClick={() => setShowSetup(!showSetup)}
+          className="pill"
+          style={{ width: "100%", padding: "12px 16px", fontSize: 13, fontWeight: 600, display: "flex", alignItems: "center", justifyContent: "space-between" }}
+        >
+          <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="3" />
+              <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
+            </svg>
+            Configurare Health Auto Export
+          </span>
+          <span style={{ fontSize: 11 }}>{showSetup ? "▲" : "▼"}</span>
+        </button>
+
+        {showSetup && (
+          <div style={{ marginTop: 12, padding: 16, background: "var(--surface-2)", borderRadius: 12 }}>
+            <p className="hh-footnote" style={{ color: "var(--label-primary)", fontWeight: 700, marginBottom: 12 }}>
+              Setup o singura data (5 min):
+            </p>
+
+            <ol style={{ margin: 0, paddingLeft: 20, color: "var(--label-secondary)", fontSize: 13, lineHeight: 1.7 }}>
+              <li style={{ marginBottom: 8 }}>
+                Instaleaza <strong style={{ color: "var(--label-primary)" }}>Health Auto Export</strong> din App Store (~$5)
+              </li>
+              <li style={{ marginBottom: 8 }}>
+                In app → <strong style={{ color: "var(--label-primary)" }}>Automations</strong> → <strong>REST API</strong>
+              </li>
+              <li style={{ marginBottom: 8 }}>
+                Method: <strong style={{ color: "var(--label-primary)" }}>POST</strong>
+              </li>
+              <li style={{ marginBottom: 8 }}>
+                URL:
+                {webhookInfo && (
+                  <button
+                    type="button"
+                    onClick={() => { navigator.clipboard.writeText(webhookInfo.url); }}
+                    style={{ display: "block", marginTop: 4, padding: "8px 10px", background: "var(--surface-1)", borderRadius: 8, border: "1px solid var(--separator)", fontSize: 11, fontFamily: "monospace", color: "var(--accent)", cursor: "pointer", wordBreak: "break-all", textAlign: "left", width: "100%" }}
+                    title="Click to copy"
+                  >
+                    📋 {webhookInfo.url}
+                  </button>
+                )}
+              </li>
+              <li style={{ marginBottom: 8 }}>
+                Header: <code style={{ fontSize: 11, color: "var(--label-primary)" }}>X-API-Token</code>
+                {webhookInfo && (
+                  <button
+                    type="button"
+                    onClick={() => { navigator.clipboard.writeText(webhookInfo.token); }}
+                    style={{ display: "block", marginTop: 4, padding: "8px 10px", background: "var(--surface-1)", borderRadius: 8, border: "1px solid var(--separator)", fontSize: 11, fontFamily: "monospace", color: "var(--accent)", cursor: "pointer", wordBreak: "break-all", textAlign: "left", width: "100%" }}
+                    title="Click to copy"
+                  >
+                    📋 {webhookInfo.token}
+                  </button>
+                )}
+              </li>
+              <li style={{ marginBottom: 8 }}>
+                Selecteaza metricile: <strong style={{ color: "var(--label-primary)" }}>Heart Rate, HRV, Steps, Exercise, SpO2, Sleep</strong> etc.
+              </li>
+              <li style={{ marginBottom: 8 }}>
+                Frecventa: <strong style={{ color: "var(--label-primary)" }}>Daily</strong> (sau la fiecare 6h)
+              </li>
+              <li>
+                Gata! Datele vin automat. Apasa <strong style={{ color: "var(--accent)" }}>Sincronizeaza din cloud</strong> oricand.
+              </li>
+            </ol>
+          </div>
+        )}
+      </div>
+
+      {/* ── 4. APLICATIE ── */}
       <div className="hh-card" style={{ padding: 20 }}>
         <p className="hh-caption" style={{ color: "var(--label-tertiary)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 12 }}>
           Aplicatie

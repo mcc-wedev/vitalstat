@@ -37,7 +37,8 @@ export interface HrvCvResult {
 export function computeHrvCv(hrvData: DailySummary[], windowDays = 7): HrvCvResult | null {
   if (hrvData.length < windowDays) return null;
 
-  const recent = hrvData.slice(-windowDays);
+  const sorted = [...hrvData].sort((a, b) => a.date.localeCompare(b.date));
+  const recent = sorted.slice(-windowDays);
   const lnValues = recent.map(d => Math.log(d.mean)).filter(v => isFinite(v) && !isNaN(v));
   if (lnValues.length < 5) return null;
 
@@ -83,7 +84,8 @@ export interface SriResult {
 }
 
 export function computeSRI(sleepNights: SleepNight[], windowDays = 28): SriResult | null {
-  const recent = sleepNights.slice(-windowDays).filter(n => n.bedtime && n.wakeTime);
+  const sortedNights = [...sleepNights].sort((a, b) => a.date.localeCompare(b.date));
+  const recent = sortedNights.slice(-windowDays).filter(n => n.bedtime && n.wakeTime);
   if (recent.length < 7) return null;
 
   // Extract bedtime hour and waketime hour
@@ -201,7 +203,8 @@ export function computeWalkingSpeed(
   sex: "male" | "female",
   windowDays = 30
 ): WalkingSpeedResult | null {
-  const recent = walkingSpeedData.slice(-windowDays).filter(d => d.mean > 0);
+  const sorted = [...walkingSpeedData].sort((a, b) => a.date.localeCompare(b.date));
+  const recent = sorted.slice(-windowDays).filter(d => d.mean > 0);
   if (recent.length < 5) return null;
 
   const speeds = recent.map(d => d.mean); // already in m/s
@@ -280,11 +283,11 @@ export function computeVo2Trajectory(
 ): Vo2TrajectoryResult | null {
   if (vo2Data.length < 14) return null;
 
-  const current = vo2Data.slice(-7);
-  const currentVo2 = current.reduce((s, d) => s + d.mean, 0) / current.length;
-
-  // Compute observed yearly change via linear regression
+  // Sort chronologically first — data may arrive unsorted from IndexedDB
   const sorted = [...vo2Data].sort((a, b) => a.date.localeCompare(b.date));
+
+  const current = sorted.slice(-7);
+  const currentVo2 = current.reduce((s, d) => s + d.mean, 0) / current.length;
   const firstDate = new Date(sorted[0].date).getTime();
   const xs = sorted.map(d => (new Date(d.date).getTime() - firstDate) / (365.25 * 86400000));
   const ys = sorted.map(d => d.mean);
@@ -413,7 +416,8 @@ export interface ChronotypeResult {
 }
 
 export function computeChronotype(sleepNights: SleepNight[], windowDays = 28): ChronotypeResult | null {
-  const recent = sleepNights.slice(-windowDays).filter(n => n.bedtime && n.wakeTime);
+  const sortedNights = [...sleepNights].sort((a, b) => a.date.localeCompare(b.date));
+  const recent = sortedNights.slice(-windowDays).filter(n => n.bedtime && n.wakeTime);
   if (recent.length < 14) return null;
 
   const weekday: number[] = [];
@@ -520,7 +524,8 @@ export function computeStepsLongevity(
   age: number,
   windowDays = 30
 ): StepsLongevityResult | null {
-  const recent = stepData.slice(-windowDays).filter(d => d.sum > 0);
+  const sorted = [...stepData].sort((a, b) => a.date.localeCompare(b.date));
+  const recent = sorted.slice(-windowDays).filter(d => d.sum > 0);
   if (recent.length < 7) return null;
 
   const avgSteps = recent.reduce((s, d) => s + d.sum, 0) / recent.length;
@@ -581,7 +586,8 @@ export function computeSleepDuration(
   sleepNights: SleepNight[],
   windowDays = 30
 ): SleepDurationResult | null {
-  const recent = sleepNights.slice(-windowDays).filter(n => n.totalMinutes > 0);
+  const sortedNights = [...sleepNights].sort((a, b) => a.date.localeCompare(b.date));
+  const recent = sortedNights.slice(-windowDays).filter(n => n.totalMinutes > 0);
   if (recent.length < 7) return null;
 
   const avgMinutes = recent.reduce((s, n) => s + n.totalMinutes, 0) / recent.length;
@@ -766,7 +772,9 @@ export function computeFitnessPercentile(
 ): FitnessPercentileResult | null {
   if (vo2Data.length < 7) return null;
 
-  const recent = vo2Data.slice(-14);
+  // Sort chronologically — data may arrive unsorted from IndexedDB
+  const sorted = [...vo2Data].sort((a, b) => a.date.localeCompare(b.date));
+  const recent = sorted.slice(-14);
   const vo2 = recent.reduce((s, d) => s + d.mean, 0) / recent.length;
   if (vo2 <= 0) return null;
 

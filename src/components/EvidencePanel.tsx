@@ -240,7 +240,7 @@ function sleepDurExplain(avgHours: number, zone: string): { explain: string; tip
 function trainingExplain(acwr: number, zone: string, weeklyMin: number): { explain: string; tip?: string } {
   const base = `Raportul de incarcare (ACWR) masoara cat antrenezi ACUM vs. cat ai antrenat LUNA TRECUTA. E cel mai studiat predictor de accidentari in sport.`;
   if (zone === "optimal") return {
-    explain: `${base} Raportul tau e ${acwr.toFixed(2)} — in zona optima (0.8-1.3). Antrenezi suficient fara sa te expui la accidentare. Ai facut ${weeklyMin} min exercitiu saptamana asta.`,
+    explain: `${base} Raportul tau e ${acwr.toFixed(2)} — in zona optima (0.8-1.3). Antrenezi suficient fara sa te expui la accidentare. Ai facut ${Math.round(weeklyMin)} min exercitiu saptamana asta.`,
   };
   if (zone === "building") return {
     explain: `${base} Raportul e ${acwr.toFixed(2)} — ai crescut incarcarea recent. Nu e periculos inca, dar ai grija sa nu sariti direct la mult.`,

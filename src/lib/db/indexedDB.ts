@@ -85,11 +85,40 @@ export async function saveHealthData(
   }
   await tx2.done;
 
-  // Merge sleep (put = upsert by date)
+  // Merge sleep — keep richer record when both exist (prevents cloud overwriting local details)
   const tx3 = db.transaction("sleep", "readwrite");
+  const sleepStore = tx3.objectStore("sleep");
   for (const night of sleepNights) {
-    if (!existingSleepDates.has(night.date)) newSleepNights++;
-    await tx3.objectStore("sleep").put(night);
+    if (!existingSleepDates.has(night.date)) {
+      newSleepNights++;
+      await sleepStore.put(night);
+    } else {
+      // Existing record — merge: keep whichever has more data
+      const existing = await sleepStore.get(night.date);
+      if (existing) {
+        const existingHasSegments = existing.segments && existing.segments.length > 0;
+        const newHasSegments = night.segments && night.segments.length > 0;
+        // Prefer the record with segments (richer data); if equal, prefer newer
+        if (!existingHasSegments && newHasSegments) {
+          await sleepStore.put(night);
+        } else if (existingHasSegments && !newHasSegments) {
+          // Keep existing — it has richer data. Update only fields that are better in new.
+          const merged = { ...existing };
+          if (night.totalMinutes > 0 && night.totalMinutes !== existing.totalMinutes) {
+            merged.totalMinutes = night.totalMinutes;
+            merged.inBedMinutes = night.inBedMinutes;
+            merged.stages = night.stages;
+            merged.efficiency = night.efficiency;
+          }
+          await sleepStore.put(merged);
+        } else {
+          // Both have same level of detail — prefer the newer data
+          await sleepStore.put(night);
+        }
+      } else {
+        await sleepStore.put(night);
+      }
+    }
   }
   await tx3.done;
 

@@ -73,56 +73,39 @@ export default function Dashboard() {
     if (!hasData) router.push("/");
   }, [hasData, router]);
 
-  // Auto-sync from cloud on app open (silent, background)
-  useEffect(() => {
-    if (!hasData) return;
+  // Silent cloud sync — reusable helper with AbortController support
+  const silentSync = useCallback(async (signal?: AbortSignal) => {
     const config = getCloudConfig();
     if (!config.enabled) return;
-    // Skip if synced less than 1 hour ago
     if (config.lastPullAt && Date.now() - new Date(config.lastPullAt).getTime() < 3600000) return;
-    pullFromCloud(false).then(async (result) => {
+    try {
+      const result = await pullFromCloud(false, signal);
+      if (signal?.aborted) return;
       if (result.newMetrics > 0 || result.newSleep > 0) {
         const freshMeta = await getMeta();
-        if (freshMeta) {
-          const freshMetrics: Record<string, DailySummary[]> = {};
-          for (const key of freshMeta.availableMetrics) {
-            if (key === "sleepAnalysis") continue;
-            freshMetrics[key] = await getMetricData(key);
-          }
-          const freshSleep = await getSleepData();
-          setData(freshMetrics, freshSleep, freshMeta);
+        if (signal?.aborted || !freshMeta) return;
+        const freshMetrics: Record<string, DailySummary[]> = {};
+        for (const key of freshMeta.availableMetrics) {
+          if (key === "sleepAnalysis") continue;
+          freshMetrics[key] = await getMetricData(key);
         }
+        const freshSleep = await getSleepData();
+        if (!signal?.aborted) setData(freshMetrics, freshSleep, freshMeta);
       }
-    }).catch(() => {}); // silent fail
-  }, [hasData, setData]);
+    } catch { /* silent — mutex or network fail */ }
+  }, [setData]);
 
-  // Also sync when app comes back to foreground (tab visible / PWA resume)
+  // Auto-sync on app open + when tab becomes visible (PWA resume)
   useEffect(() => {
     if (!hasData) return;
+    const ac = new AbortController();
+    silentSync(ac.signal);
     const handleVisibility = () => {
-      if (document.visibilityState !== "visible") return;
-      const config = getCloudConfig();
-      if (!config.enabled) return;
-      // Skip if synced less than 1 hour ago
-      if (config.lastPullAt && Date.now() - new Date(config.lastPullAt).getTime() < 3600000) return;
-      pullFromCloud(false).then(async (result) => {
-        if (result.newMetrics > 0 || result.newSleep > 0) {
-          const freshMeta = await getMeta();
-          if (freshMeta) {
-            const freshMetrics: Record<string, DailySummary[]> = {};
-            for (const key of freshMeta.availableMetrics) {
-              if (key === "sleepAnalysis") continue;
-              freshMetrics[key] = await getMetricData(key);
-            }
-            const freshSleep = await getSleepData();
-            setData(freshMetrics, freshSleep, freshMeta);
-          }
-        }
-      }).catch(() => {});
+      if (document.visibilityState === "visible") silentSync(ac.signal);
     };
     document.addEventListener("visibilitychange", handleVisibility);
-    return () => document.removeEventListener("visibilitychange", handleVisibility);
-  }, [hasData, setData]);
+    return () => { ac.abort(); document.removeEventListener("visibilitychange", handleVisibility); };
+  }, [hasData, silentSync]);
 
   const bounds = useMemo(() => getDateBounds(datePreset, meta), [datePreset, meta]);
   const filteredMetrics = useMemo(() => {
@@ -673,7 +656,9 @@ function ProfileTab() {
 
   // Load webhook info on mount
   useEffect(() => {
-    getWebhookInfo().then(setWebhookInfo).catch(() => {});
+    let active = true;
+    getWebhookInfo().then(info => { if (active) setWebhookInfo(info); }).catch(() => {});
+    return () => { active = false; };
   }, []);
 
   /** Reload merged data from IndexedDB into Zustand store */

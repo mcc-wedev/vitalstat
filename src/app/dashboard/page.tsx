@@ -67,11 +67,62 @@ const CATEGORY_TABS: { key: MetricCategory; label: string; icon: string }[] = [
 
 export default function Dashboard() {
   const router = useRouter();
-  const { hasData, metrics, sleepNights, meta, activeTab, setActiveTab, datePreset } = useHealthStore();
+  const { hasData, metrics, sleepNights, meta, activeTab, setActiveTab, datePreset, setData } = useHealthStore();
 
   useEffect(() => {
     if (!hasData) router.push("/");
   }, [hasData, router]);
+
+  // Auto-sync from cloud on app open (silent, background)
+  useEffect(() => {
+    if (!hasData) return;
+    const config = getCloudConfig();
+    if (!config.enabled) return;
+    // Skip if synced less than 1 hour ago
+    if (config.lastPullAt && Date.now() - new Date(config.lastPullAt).getTime() < 3600000) return;
+    pullFromCloud(false).then(async (result) => {
+      if (result.newMetrics > 0 || result.newSleep > 0) {
+        const freshMeta = await getMeta();
+        if (freshMeta) {
+          const freshMetrics: Record<string, DailySummary[]> = {};
+          for (const key of freshMeta.availableMetrics) {
+            if (key === "sleepAnalysis") continue;
+            freshMetrics[key] = await getMetricData(key);
+          }
+          const freshSleep = await getSleepData();
+          setData(freshMetrics, freshSleep, freshMeta);
+        }
+      }
+    }).catch(() => {}); // silent fail
+  }, [hasData, setData]);
+
+  // Also sync when app comes back to foreground (tab visible / PWA resume)
+  useEffect(() => {
+    if (!hasData) return;
+    const handleVisibility = () => {
+      if (document.visibilityState !== "visible") return;
+      const config = getCloudConfig();
+      if (!config.enabled) return;
+      // Skip if synced less than 1 hour ago
+      if (config.lastPullAt && Date.now() - new Date(config.lastPullAt).getTime() < 3600000) return;
+      pullFromCloud(false).then(async (result) => {
+        if (result.newMetrics > 0 || result.newSleep > 0) {
+          const freshMeta = await getMeta();
+          if (freshMeta) {
+            const freshMetrics: Record<string, DailySummary[]> = {};
+            for (const key of freshMeta.availableMetrics) {
+              if (key === "sleepAnalysis") continue;
+              freshMetrics[key] = await getMetricData(key);
+            }
+            const freshSleep = await getSleepData();
+            setData(freshMetrics, freshSleep, freshMeta);
+          }
+        }
+      }).catch(() => {});
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => document.removeEventListener("visibilitychange", handleVisibility);
+  }, [hasData, setData]);
 
   const bounds = useMemo(() => getDateBounds(datePreset, meta), [datePreset, meta]);
   const filteredMetrics = useMemo(() => {
@@ -647,10 +698,11 @@ function ProfileTab() {
       setSyncResult(result);
       if ((result.newMetrics > 0 || result.newSleep > 0) && !result.error) {
         await reloadFromDB();
-        const cfg = { enabled: true, lastPullAt: new Date().toISOString() };
-        setCloudConfig(cfg);
-        setCloudConfigState(cfg);
       }
+      // Always enable auto-sync after manual press (even if no new data yet)
+      const cfg = { enabled: true, lastPullAt: new Date().toISOString() };
+      setCloudConfig(cfg);
+      setCloudConfigState(cfg);
       setSyncStatus("");
     } catch (err) {
       setSyncResult({ newMetrics: 0, newSleep: 0, dateRange: null, error: err instanceof Error ? err.message : "Eroare sync" });

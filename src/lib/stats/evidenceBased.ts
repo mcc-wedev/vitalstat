@@ -451,7 +451,7 @@ export function computeChronotype(sleepNights: SleepNight[], windowDays = 28): C
   const weekendMid = weekend.reduce((a, b) => a + b, 0) / weekend.length;
 
   // MSFsc — corrected for sleep debt (Roenneberg formula)
-  const allMidpoints = recent.filter(n => n.sleepMidpoint > 0).map(n => n.sleepMidpoint);
+  // Use weekday+weekend arrays which already have computed midpoints
   const avgDuration = recent.reduce((s, n) => s + n.totalMinutes, 0) / recent.length;
   const weekdayDuration = recent.filter(n => {
     const d = new Date(n.date + "T12:00:00").getDay();

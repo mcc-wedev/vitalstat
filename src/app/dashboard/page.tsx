@@ -607,6 +607,11 @@ function BrowseTab({
       <div className="hh-inset-group">
         {CATEGORY_TABS.map((cat) => {
           const count = metricsForCategory(cat.key).length;
+          // Sleep category: count sleep nights instead of metrics
+          const hasSleepData = cat.key === "sleep" && sleepNights.length > 0;
+          const hasData = count > 0 || hasSleepData;
+          if (!hasData) return null; // Hide empty categories
+
           return (
             <button
               key={cat.key}
@@ -629,11 +634,11 @@ function BrowseTab({
                   <span className="hh-body" style={{ color: "var(--label-primary)", fontWeight: 500, display: "block" }}>
                     {cat.label}
                   </span>
-                  {count > 0 && (
-                    <span className="hh-caption" style={{ color: "var(--label-tertiary)" }}>
-                      {count} {count === 1 ? "metrica" : "metrici"}
-                    </span>
-                  )}
+                  <span className="hh-caption" style={{ color: "var(--label-tertiary)" }}>
+                    {hasSleepData && count === 0
+                      ? `${sleepNights.length} nopti`
+                      : `${count} ${count === 1 ? "metrica" : "metrici"}`}
+                  </span>
                 </div>
               </div>
               <span style={{ color: "var(--label-tertiary)", fontSize: 17 }}>›</span>

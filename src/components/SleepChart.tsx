@@ -39,9 +39,20 @@ export function SleepChart({ data, days = 30 }: SleepChartProps) {
     const weekdayMid: number[] = [];
     const weekendMid: number[] = [];
     sliced.forEach((d) => {
+      // Compute midpoint from bedtime/wakeTime if not stored
+      let mid = d.sleepMidpoint;
+      if ((!mid || mid === 0) && d.bedtime && d.wakeTime) {
+        const bed = new Date(d.bedtime).getTime();
+        const wake = new Date(d.wakeTime).getTime();
+        if (bed > 0 && wake > 0) {
+          const midDate = new Date((bed + wake) / 2);
+          mid = midDate.getHours() + midDate.getMinutes() / 60;
+        }
+      }
+      if (!mid || mid === 0) return;
       const dow = new Date(d.date).getDay();
-      if (dow === 0 || dow === 5 || dow === 6) weekendMid.push(d.sleepMidpoint);
-      else weekdayMid.push(d.sleepMidpoint);
+      if (dow === 0 || dow === 5 || dow === 6) weekendMid.push(mid);
+      else weekdayMid.push(mid);
     });
 
     const avgWeekdayMid = weekdayMid.length > 0 ? weekdayMid.reduce((a, b) => a + b, 0) / weekdayMid.length : 0;
@@ -49,9 +60,20 @@ export function SleepChart({ data, days = 30 }: SleepChartProps) {
 
     const { mean: avgDuration } = meanStd(durations);
     const { mean: avgEfficiency } = meanStd(efficiencies);
-    const midpoints = sliced.map(d => d.sleepMidpoint);
+    const midpoints = sliced.map(d => {
+      if (d.sleepMidpoint > 0) return d.sleepMidpoint;
+      if (d.bedtime && d.wakeTime) {
+        const bed = new Date(d.bedtime).getTime();
+        const wake = new Date(d.wakeTime).getTime();
+        if (bed > 0 && wake > 0) {
+          const midDate = new Date((bed + wake) / 2);
+          return midDate.getHours() + midDate.getMinutes() / 60;
+        }
+      }
+      return 0;
+    }).filter(m => m > 0 && isFinite(m));
     const { std: midpointStd } = meanStd(midpoints);
-    const socialJetLag = Math.abs(avgWeekendMid - avgWeekdayMid);
+    const socialJetLag = (weekdayMid.length > 0 && weekendMid.length > 0) ? Math.abs(avgWeekendMid - avgWeekdayMid) : 0;
 
     const totalDeep = sliced.reduce((s, d) => s + d.stages.deep, 0);
     const totalSleep = sliced.reduce((s, d) => s + d.totalMinutes, 0);
@@ -62,8 +84,8 @@ export function SleepChart({ data, days = 30 }: SleepChartProps) {
       stats: {
         avgDuration: avgDuration.toFixed(1),
         avgEfficiency: avgEfficiency.toFixed(0),
-        regularity: midpointStd.toFixed(1),
-        socialJetLag: socialJetLag.toFixed(1),
+        regularity: isFinite(midpointStd) ? midpointStd.toFixed(1) : "—",
+        socialJetLag: isFinite(socialJetLag) ? socialJetLag.toFixed(1) : "—",
         deepPct: deepPct.toFixed(0),
       },
     };

@@ -536,3 +536,24 @@ body {
   font-size: 12px !important;
   padding: 8px 12px !important;
 }
+
+/* ═══════════════════════════════════════════════════ */
+/*  PRINT STYLES — for PDF export                      */
+/* ═══════════════════════════════════════════════════ */
+@media print {
+  body {
+    background: #fff !important;
+    color: #000 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .hh-card {
+    break-inside: avoid;
+    box-shadow: none !important;
+    border: 1px solid #ddd !important;
+  }
+  nav, button, .hh-card-tappable, [data-tab-bar] {
+    display: none !important;
+  }
+  section { break-inside: avoid; }
+}

@@ -40,6 +40,12 @@ import { Hypnogram } from "@/components/Hypnogram";
 import { PeriodReport } from "@/components/PeriodReport";
 import { EvidencePanel } from "@/components/EvidencePanel";
 import { DeepAnalysis } from "@/components/DeepAnalysis";
+import { Recommendations } from "@/components/Recommendations";
+import { WeeklyDigestCard } from "@/components/WeeklyDigestCard";
+import { CorrelationDiscovery } from "@/components/CorrelationDiscovery";
+import { PredictiveReadiness } from "@/components/PredictiveReadiness";
+import { PeriodComparison } from "@/components/PeriodComparison";
+import { ExportReport } from "@/components/ExportReport";
 import { METRIC_CONFIG, CATEGORIES, type MetricCategory } from "@/lib/parser/healthTypes";
 import { generateSmartInsights } from "@/lib/stats/smartInsights";
 import type { DailySummary, SleepNight } from "@/lib/parser/healthTypes";
@@ -306,6 +312,16 @@ function OverviewTab({
       />
 
       {/* ─────────────────────────────────────────── */}
+      {/*  RECOMANDARI PERSONALIZATE                   */}
+      {/* ─────────────────────────────────────────── */}
+      <Recommendations metrics={allMetrics} sleepNights={allSleep} />
+
+      {/* ─────────────────────────────────────────── */}
+      {/*  PREDICTIE MAINE                             */}
+      {/* ─────────────────────────────────────────── */}
+      <PredictiveReadiness metrics={allMetrics} sleepNights={allSleep} />
+
+      {/* ─────────────────────────────────────────── */}
       {/*  2. PROGRES — clear week-over-week deltas   */}
       {/*     "Did I improve? By how much?"           */}
       {/* ─────────────────────────────────────────── */}
@@ -317,10 +333,29 @@ function OverviewTab({
       />
 
       {/* ─────────────────────────────────────────── */}
+      {/*  RAPORT SAPTAMANAL                           */}
+      {/* ─────────────────────────────────────────── */}
+      <WeeklyDigestCard metrics={allMetrics} sleepNights={allSleep} />
+
+      {/* ─────────────────────────────────────────── */}
       {/*  PERIOD REPORT — deep analysis for ≥30d    */}
       {/* ─────────────────────────────────────────── */}
       {(periodDates.length || 0) >= 30 && (
         <PeriodReport
+          metrics={metrics}
+          sleepNights={sleepNights}
+          allMetrics={allMetrics}
+          allSleep={allSleep}
+          windowDays={periodDates.length || 30}
+          periodLabel={periodLabel}
+        />
+      )}
+
+      {/* ─────────────────────────────────────────── */}
+      {/*  COMPARATIE PERIOADE                         */}
+      {/* ─────────────────────────────────────────── */}
+      {(periodDates.length || 0) >= 14 && (
+        <PeriodComparison
           metrics={metrics}
           sleepNights={sleepNights}
           allMetrics={allMetrics}
@@ -380,6 +415,16 @@ function OverviewTab({
       {/* ─────────────────────────────────────────── */}
       <EvidencePanel metrics={allMetrics} sleepNights={allSleep} />
       <DeepAnalysis metrics={allMetrics} sleepNights={allSleep} />
+
+      {/* ─────────────────────────────────────────── */}
+      {/*  CORELATII PERSONALE                         */}
+      {/* ─────────────────────────────────────────── */}
+      <CorrelationDiscovery metrics={allMetrics} sleepNights={allSleep} />
+
+      {/* ─────────────────────────────────────────── */}
+      {/*  EXPORT PDF                                  */}
+      {/* ─────────────────────────────────────────── */}
+      <ExportReport />
 
       {/* ─────────────────────────────────────────── */}
       {/*  6. ADVANCED TOGGLE — hide everything else  */}

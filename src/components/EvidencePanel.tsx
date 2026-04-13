@@ -9,13 +9,13 @@ interface Props {
   sleepNights: SleepNight[];
 }
 
-/** Color by zone */
-function zc(zone: string): string {
+/** Zone → color palette */
+function zoneColors(zone: string): { main: string; bg: string; glow: string } {
   const green = ["adapted", "regular", "excellent", "above_avg", "improving", "maintaining", "minimal", "early", "moderate_early", "intermediate", "optimal", "above_target", "on_target", "elite", "above_average"];
   const yellow = ["moderate", "average", "mild", "moderate_late", "declining_normal", "good", "below_target", "building", "below_average"];
-  if (green.includes(zone)) return "rgb(52,199,89)";
-  if (yellow.includes(zone)) return "rgb(255,204,0)";
-  return "rgb(255,59,48)";
+  if (green.includes(zone)) return { main: "rgb(52,199,89)", bg: "rgba(52,199,89,0.08)", glow: "rgba(52,199,89,0.15)" };
+  if (yellow.includes(zone)) return { main: "rgb(255,176,0)", bg: "rgba(255,176,0,0.08)", glow: "rgba(255,176,0,0.12)" };
+  return { main: "rgb(255,59,48)", bg: "rgba(255,59,48,0.08)", glow: "rgba(255,59,48,0.12)" };
 }
 
 function zoneLabel(zone: string): string {
@@ -45,45 +45,95 @@ function MetricCard({ title, value, unit, zone, explain, tip, reference }: {
   tip?: string;
   reference: string;
 }) {
-  const color = zc(zone);
+  const { main, bg, glow } = zoneColors(zone);
   return (
-    <div style={{ padding: "18px 0", borderBottom: "0.5px solid var(--separator)" }}>
-      {/* Header: title + value */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 6 }}>
-        <span style={{ fontSize: 15, fontWeight: 600, color: "var(--label-primary)" }}>{title}</span>
-        <span style={{ fontSize: 22, fontWeight: 700, color: "var(--label-primary)", letterSpacing: "-0.02em" }}>
-          {value}
-          {unit && <span style={{ fontSize: 12, fontWeight: 400, color: "var(--label-secondary)", marginLeft: 3 }}>{unit}</span>}
-        </span>
+    <div style={{
+      background: "var(--surface-1)",
+      borderRadius: 16,
+      padding: "20px 20px 16px",
+      marginBottom: 12,
+      position: "relative",
+      overflow: "hidden",
+      border: `0.5px solid ${glow}`,
+      boxShadow: `0 0 20px ${glow}, 0 1px 3px rgba(0,0,0,0.08)`,
+    }}>
+      {/* Subtle gradient glow top-right */}
+      <div style={{
+        position: "absolute", top: -30, right: -30, width: 120, height: 120,
+        background: `radial-gradient(circle, ${glow} 0%, transparent 70%)`,
+        pointerEvents: "none",
+      }} />
+
+      {/* Zone indicator bar */}
+      <div style={{
+        position: "absolute", top: 0, left: 0, width: 3, height: "100%",
+        background: `linear-gradient(to bottom, ${main}, ${main}44)`,
+        borderRadius: "3px 0 0 3px",
+      }} />
+
+      {/* Header row */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10, position: "relative" }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 16, fontWeight: 700, color: "var(--label-primary)", letterSpacing: "-0.01em", lineHeight: 1.3 }}>
+            {title}
+          </div>
+          <div style={{
+            display: "inline-flex", alignItems: "center", gap: 5, marginTop: 6,
+            fontSize: 11, fontWeight: 700, color: main, textTransform: "uppercase", letterSpacing: "0.04em",
+          }}>
+            <span style={{
+              width: 7, height: 7, borderRadius: "50%", background: main,
+              boxShadow: `0 0 6px ${main}`,
+            }} />
+            {zoneLabel(zone)}
+          </div>
+        </div>
+
+        <div style={{ textAlign: "right", flexShrink: 0, marginLeft: 12 }}>
+          <span style={{
+            fontSize: 28, fontWeight: 800, color: "var(--label-primary)",
+            letterSpacing: "-0.03em", lineHeight: 1,
+            fontVariantNumeric: "tabular-nums",
+          }}>
+            {value}
+          </span>
+          {unit && (
+            <div style={{ fontSize: 11, color: "var(--label-tertiary)", marginTop: 2, letterSpacing: "0.02em" }}>
+              {unit}
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* Zone badge */}
-      <div style={{ marginBottom: 10 }}>
-        <span style={{
-          fontSize: 12, fontWeight: 700, color,
-          padding: "3px 10px", borderRadius: 6,
-          background: `${color}18`,
-        }}>
-          {zoneLabel(zone)}
-        </span>
-      </div>
-
-      {/* Plain language explanation */}
-      <p style={{ fontSize: 13, lineHeight: 1.5, color: "var(--label-secondary)", margin: "0 0 6px 0" }}>
+      {/* Explanation */}
+      <p style={{
+        fontSize: 13, lineHeight: 1.55, color: "var(--label-secondary)",
+        margin: "0 0 8px 0", position: "relative",
+      }}>
         {explain}
       </p>
 
-      {/* Actionable tip (if any) */}
+      {/* Actionable tip */}
       {tip && (
-        <p style={{ fontSize: 13, lineHeight: 1.5, color, fontWeight: 600, margin: "0 0 8px 0" }}>
-          → {tip}
-        </p>
+        <div style={{
+          background: bg,
+          borderRadius: 10, padding: "10px 12px", margin: "0 0 10px 0",
+          display: "flex", gap: 8, alignItems: "flex-start",
+        }}>
+          <span style={{ color: main, fontSize: 14, lineHeight: 1.5, flexShrink: 0 }}>&#x279C;</span>
+          <p style={{ fontSize: 13, lineHeight: 1.5, color: main, fontWeight: 600, margin: 0 }}>
+            {tip}
+          </p>
+        </div>
       )}
 
-      {/* Reference */}
-      <p style={{ fontSize: 10, color: "var(--label-quaternary, rgba(235,235,245,0.18))", margin: 0, fontStyle: "italic" }}>
-        Sursa: {reference}
-      </p>
+      {/* Reference — subtle pill */}
+      <div style={{
+        fontSize: 10, color: "var(--label-quaternary, rgba(235,235,245,0.18))",
+        fontStyle: "italic", position: "relative",
+      }}>
+        {reference}
+      </div>
     </div>
   );
 }
@@ -301,14 +351,24 @@ export function EvidencePanel({ metrics, sleepNights }: Props) {
   if (available.length < 2) return null;
 
   return (
-    <div className="hh-card" style={{ padding: "16px 20px" }}>
-      <div style={{ marginBottom: 12 }}>
-        <p className="hh-caption" style={{ color: "var(--label-tertiary)", textTransform: "uppercase", letterSpacing: "0.05em", margin: "0 0 4px 0" }}>
-          Metrici validate stiintific
-        </p>
-        <p style={{ fontSize: 12, color: "var(--label-tertiary)", margin: 0 }}>
-          Calcule bazate pe studii cu zeci de mii de participanti. Fiecare cu sursa.
-        </p>
+    <section>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
+        <div style={{
+          width: 32, height: 32, borderRadius: 8,
+          background: "linear-gradient(135deg, rgba(52,199,89,0.2), rgba(0,122,255,0.2))",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          fontSize: 16,
+        }}>
+          &#x1F9EC;
+        </div>
+        <div>
+          <p style={{ fontSize: 13, fontWeight: 700, color: "var(--label-primary)", margin: 0, textTransform: "uppercase", letterSpacing: "0.04em" }}>
+            Metrici validate stiintific
+          </p>
+          <p style={{ fontSize: 11, color: "var(--label-tertiary)", margin: 0 }}>
+            Bazate pe studii cu zeci de mii de participanti
+          </p>
+        </div>
       </div>
 
       {report.hrvCv && (() => {
@@ -489,6 +549,6 @@ export function EvidencePanel({ metrics, sleepNights }: Props) {
           />
         );
       })()}
-    </div>
+    </section>
   );
 }

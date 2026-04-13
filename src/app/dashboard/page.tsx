@@ -39,6 +39,7 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { Hypnogram } from "@/components/Hypnogram";
 import { PeriodReport } from "@/components/PeriodReport";
 import { EvidencePanel } from "@/components/EvidencePanel";
+import { DeepAnalysis } from "@/components/DeepAnalysis";
 import { METRIC_CONFIG, CATEGORIES, type MetricCategory } from "@/lib/parser/healthTypes";
 import { generateSmartInsights } from "@/lib/stats/smartInsights";
 import type { DailySummary, SleepNight } from "@/lib/parser/healthTypes";
@@ -378,6 +379,7 @@ function OverviewTab({
       {/*  EVIDENCE-BASED — validated scientific metrics */}
       {/* ─────────────────────────────────────────── */}
       <EvidencePanel metrics={allMetrics} sleepNights={allSleep} />
+      <DeepAnalysis metrics={allMetrics} sleepNights={allSleep} />
 
       {/* ─────────────────────────────────────────── */}
       {/*  6. ADVANCED TOGGLE — hide everything else  */}

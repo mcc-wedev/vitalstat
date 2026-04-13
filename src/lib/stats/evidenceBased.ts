@@ -488,6 +488,320 @@ export function computeChronotype(sleepNights: SleepNight[], windowDays = 28): C
 }
 
 // ═══════════════════════════════════════════════════════════════
+//  7. Steps & Longevity
+//
+//  Paluch AE, Bajpai S, Bassett DR, et al.
+//  "Daily steps and all-cause mortality: a meta-analysis of
+//   15 international cohorts."
+//  Lancet Public Health. 2022;7(3):e219-e228. (n=47,471)
+//
+//  Also: Saint-Maurice PF, et al.
+//  "Association of Daily Step Count and Step Intensity With
+//   Mortality Among US Adults."
+//  JAMA. 2020;323(12):1151-1160. (n=4,840 NHANES)
+//
+//  Dose-response curve:
+//  Adults ≥60: plateau ~6,000-8,000 steps/day
+//  Adults <60: plateau ~8,000-10,000 steps/day
+//  Each additional 1,000 steps → ~15% lower mortality (up to plateau)
+// ═══════════════════════════════════════════════════════════════
+
+export interface StepsLongevityResult {
+  avgSteps: number;           // daily average last 30 days
+  zone: "excellent" | "above_target" | "on_target" | "below_target" | "low";
+  targetSteps: number;        // age-adjusted daily target
+  mortalityReduction: number; // approximate % reduction vs sedentary
+  n: number;
+  reference: string;
+}
+
+export function computeStepsLongevity(
+  stepData: DailySummary[],
+  age: number,
+  windowDays = 30
+): StepsLongevityResult | null {
+  const recent = stepData.slice(-windowDays).filter(d => d.sum > 0);
+  if (recent.length < 7) return null;
+
+  const avgSteps = recent.reduce((s, d) => s + d.sum, 0) / recent.length;
+
+  // Age-adjusted target from Paluch 2022
+  const target = age >= 60 ? 7000 : 8000;
+  const maxBenefit = age >= 60 ? 8000 : 10000;
+
+  let zone: StepsLongevityResult["zone"];
+  if (avgSteps >= maxBenefit) zone = "excellent";
+  else if (avgSteps >= target) zone = "above_target";
+  else if (avgSteps >= target * 0.75) zone = "on_target";
+  else if (avgSteps >= 4000) zone = "below_target";
+  else zone = "low";
+
+  // Approximate mortality reduction: ~15% per 1,000 steps up to plateau
+  // Base: ~4,000 steps = reference group in Paluch 2022
+  const stepsAboveBase = Math.max(0, Math.min(avgSteps, maxBenefit) - 4000);
+  const mortalityReduction = Math.round((stepsAboveBase / 1000) * 15);
+
+  return {
+    avgSteps,
+    zone,
+    targetSteps: target,
+    mortalityReduction: Math.min(mortalityReduction, 65), // cap at study max
+    n: recent.length,
+    reference: "Paluch et al. 2022, Lancet Public Health 7(3):e219-e228",
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  8. Sleep Duration — Optimal Zone (U-Curve)
+//
+//  Cappuccio FP, D'Elia L, Strazzullo P, Miller MA.
+//  "Sleep Duration and All-Cause Mortality: A Systematic Review
+//   and Meta-Analysis of Prospective Studies."
+//  Sleep. 2010;33(5):585-592. (n=1,382,999, 16 studies)
+//
+//  Also: Yin J, et al. (2017) "Relationship of Sleep Duration
+//  With All-Cause Mortality and Cardiovascular Events"
+//  J Am Heart Assoc. 6(9):e005947. (n=3,340,684)
+//
+//  Short sleep (<6h): +12% all-cause mortality
+//  Long sleep (>9h): +30% all-cause mortality
+//  Optimal: 7-8h (nadir of U-curve)
+//  6-7h and 8-9h: slightly elevated but acceptable
+// ═══════════════════════════════════════════════════════════════
+
+export interface SleepDurationResult {
+  avgHours: number;       // average sleep duration in hours
+  zone: "optimal" | "good" | "short" | "very_short" | "long" | "very_long";
+  riskLabel: string;      // e.g. "risc minim", "risc moderat crescut"
+  n: number;
+  reference: string;
+}
+
+export function computeSleepDuration(
+  sleepNights: SleepNight[],
+  windowDays = 30
+): SleepDurationResult | null {
+  const recent = sleepNights.slice(-windowDays).filter(n => n.totalMinutes > 0);
+  if (recent.length < 7) return null;
+
+  const avgMinutes = recent.reduce((s, n) => s + n.totalMinutes, 0) / recent.length;
+  const avgHours = avgMinutes / 60;
+
+  let zone: SleepDurationResult["zone"];
+  let riskLabel: string;
+
+  if (avgHours >= 7 && avgHours <= 8) {
+    zone = "optimal"; riskLabel = "risc minim";
+  } else if (avgHours >= 6 && avgHours < 7) {
+    zone = "good"; riskLabel = "risc usor crescut";
+  } else if (avgHours > 8 && avgHours <= 9) {
+    zone = "good"; riskLabel = "risc usor crescut";
+  } else if (avgHours >= 5 && avgHours < 6) {
+    zone = "short"; riskLabel = "+12% risc mortalitate";
+  } else if (avgHours < 5) {
+    zone = "very_short"; riskLabel = "risc semnificativ crescut";
+  } else if (avgHours > 9 && avgHours <= 10) {
+    zone = "long"; riskLabel = "+30% risc mortalitate";
+  } else {
+    zone = "very_long"; riskLabel = "risc semnificativ crescut";
+  }
+
+  return {
+    avgHours,
+    zone,
+    riskLabel,
+    n: recent.length,
+    reference: "Cappuccio et al. 2010, Sleep 33(5):585-592",
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  9. Training Load Balance — ACWR
+//
+//  Gabbett TJ.
+//  "The training—injury prevention paradox: should athletes be
+//   training smarter and harder?"
+//  Br J Sports Med. 2016;50(5):273-280.
+//
+//  Also: Blanch P, Gabbett TJ. (2016)
+//  "Has the athlete trained enough to return to play safely?"
+//  Br J Sports Med. 50:471-475.
+//
+//  ACWR = acute load (7d) / chronic load (28d rolling avg)
+//  Sweet spot: 0.8–1.3
+//  Danger zone: > 1.5 (2–4x injury risk)
+//  Too low: < 0.8 (detraining, also slightly higher injury risk)
+//
+//  Uses exponentially weighted moving average (EWMA) variant
+//  for more sensitivity to recent load changes.
+// ═══════════════════════════════════════════════════════════════
+
+export interface TrainingLoadResult {
+  acwr: number;              // acute:chronic ratio
+  acuteLoad: number;         // avg daily exercise min, last 7 days
+  chronicLoad: number;       // avg daily exercise min, last 28 days
+  zone: "optimal" | "building" | "high_risk" | "detraining";
+  weeklyMinutes: number;     // total exercise last 7 days
+  n: number;
+  reference: string;
+}
+
+export function computeTrainingLoad(
+  exerciseData: DailySummary[],
+  windowDays = 35 // need 28d chronic + 7d acute
+): TrainingLoadResult | null {
+  if (exerciseData.length < 21) return null; // need at least 3 weeks
+
+  // Fill a day-indexed array (some days may have 0 exercise)
+  const sorted = [...exerciseData].sort((a, b) => a.date.localeCompare(b.date));
+  const recent = sorted.slice(-windowDays);
+  if (recent.length < 21) return null;
+
+  const dailyLoads = recent.map(d => d.sum); // sum of exercise minutes per day
+
+  // EWMA: lambda_a = 2/(7+1) for acute, lambda_c = 2/(28+1) for chronic
+  const lambdaA = 2 / (7 + 1);
+  const lambdaC = 2 / (28 + 1);
+
+  let ewmaAcute = dailyLoads[0];
+  let ewmaChronic = dailyLoads[0];
+
+  for (let i = 1; i < dailyLoads.length; i++) {
+    ewmaAcute = dailyLoads[i] * lambdaA + ewmaAcute * (1 - lambdaA);
+    ewmaChronic = dailyLoads[i] * lambdaC + ewmaChronic * (1 - lambdaC);
+  }
+
+  const acwr = ewmaChronic > 0 ? ewmaAcute / ewmaChronic : 0;
+
+  // Simple averages for display
+  const last7 = dailyLoads.slice(-7);
+  const acuteLoad = last7.reduce((a, b) => a + b, 0) / 7;
+  const chronicLoad = dailyLoads.reduce((a, b) => a + b, 0) / dailyLoads.length;
+  const weeklyMinutes = last7.reduce((a, b) => a + b, 0);
+
+  let zone: TrainingLoadResult["zone"];
+  if (acwr >= 0.8 && acwr <= 1.3) zone = "optimal";
+  else if (acwr > 1.3 && acwr <= 1.5) zone = "building";
+  else if (acwr > 1.5) zone = "high_risk";
+  else zone = "detraining";
+
+  return {
+    acwr,
+    acuteLoad,
+    chronicLoad,
+    zone,
+    weeklyMinutes,
+    n: recent.length,
+    reference: "Gabbett 2016, Br J Sports Med 50(5):273-280",
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  10. Cardiorespiratory Fitness Percentile — Mortality Risk
+//
+//  Mandsager K, Harb S, Cremer P, Phelan D, Nissen SE, Jaber W.
+//  "Association of Cardiorespiratory Fitness With Long-term
+//   Mortality Among Adults Undergoing Exercise Treadmill Testing."
+//  JAMA Netw Open. 2018;1(6):e183605. (n=122,007 Cleveland Clinic)
+//
+//  Key finding: "elite" fitness (>97th percentile) = 80% lower
+//  mortality vs lowest quintile. Even "above average" = 50% lower.
+//  No upper limit of benefit — more fit = always better.
+//
+//  Percentile thresholds from FRIEND registry:
+//  Kaminsky LA, et al. (2022) "Updated Reference Standards for
+//  Cardiorespiratory Fitness" Mayo Clin Proc. 97(2):285-293.
+// ═══════════════════════════════════════════════════════════════
+
+export interface FitnessPercentileResult {
+  vo2: number;
+  percentile: number;
+  category: "elite" | "above_average" | "average" | "below_average" | "low";
+  mortalityReduction: string;  // approximate vs lowest quintile
+  reference: string;
+}
+
+/**
+ * VO2 Max percentile tables (FRIEND registry, Kaminsky 2022)
+ * Simplified to decile boundaries by age and sex.
+ * Values in mL/kg/min for each percentile threshold.
+ */
+function vo2Percentile(vo2: number, age: number, sex: "male" | "female"): number {
+  // Percentile thresholds [P10, P25, P50, P75, P90] by age group
+  const tables: Record<string, number[]> = {
+    // Males
+    "m_20": [32, 38, 44, 50, 55],
+    "m_30": [30, 35, 41, 47, 52],
+    "m_40": [27, 32, 38, 44, 49],
+    "m_50": [24, 29, 35, 40, 45],
+    "m_60": [21, 26, 31, 37, 42],
+    "m_70": [18, 23, 28, 33, 38],
+    // Females
+    "f_20": [26, 31, 36, 41, 46],
+    "f_30": [24, 28, 33, 38, 43],
+    "f_40": [22, 26, 31, 36, 40],
+    "f_50": [20, 24, 28, 33, 37],
+    "f_60": [17, 21, 25, 30, 34],
+    "f_70": [15, 18, 22, 27, 31],
+  };
+
+  const prefix = sex === "male" ? "m" : "f";
+  const ageGroup = Math.min(70, Math.max(20, Math.floor(age / 10) * 10));
+  const key = `${prefix}_${ageGroup}`;
+  const thresholds = tables[key] || tables[`${prefix}_50`];
+
+  // [P10, P25, P50, P75, P90]
+  if (vo2 < thresholds[0]) return 5;
+  if (vo2 < thresholds[1]) return 18;
+  if (vo2 < thresholds[2]) return 38;
+  if (vo2 < thresholds[3]) return 63;
+  if (vo2 < thresholds[4]) return 83;
+  return 95;
+}
+
+export function computeFitnessPercentile(
+  vo2Data: DailySummary[],
+  age: number,
+  sex: "male" | "female"
+): FitnessPercentileResult | null {
+  if (vo2Data.length < 7) return null;
+
+  const recent = vo2Data.slice(-14);
+  const vo2 = recent.reduce((s, d) => s + d.mean, 0) / recent.length;
+  if (vo2 <= 0) return null;
+
+  const percentile = vo2Percentile(vo2, age, sex);
+
+  let category: FitnessPercentileResult["category"];
+  let mortalityReduction: string;
+
+  if (percentile >= 90) {
+    category = "elite";
+    mortalityReduction = "~80% mai mic vs sedentari";
+  } else if (percentile >= 60) {
+    category = "above_average";
+    mortalityReduction = "~50% mai mic vs sedentari";
+  } else if (percentile >= 40) {
+    category = "average";
+    mortalityReduction = "~30% mai mic vs sedentari";
+  } else if (percentile >= 20) {
+    category = "below_average";
+    mortalityReduction = "~15% mai mic vs sedentari";
+  } else {
+    category = "low";
+    mortalityReduction = "referinta (grup sedentari)";
+  }
+
+  return {
+    vo2,
+    percentile,
+    category,
+    mortalityReduction,
+    reference: "Mandsager et al. 2018, JAMA Netw Open 1(6):e183605; Kaminsky 2022",
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════
 //  Aggregate: compute all available evidence-based metrics
 // ═══════════════════════════════════════════════════════════════
 
@@ -498,6 +812,10 @@ export interface EvidenceBasedReport {
   vo2Trajectory: Vo2TrajectoryResult | null;
   rhrTrend: RhrTrendResult | null;
   chronotype: ChronotypeResult | null;
+  stepsLongevity: StepsLongevityResult | null;
+  sleepDuration: SleepDurationResult | null;
+  trainingLoad: TrainingLoadResult | null;
+  fitnessPercentile: FitnessPercentileResult | null;
 }
 
 export function computeEvidenceBasedReport(
@@ -513,5 +831,9 @@ export function computeEvidenceBasedReport(
     vo2Trajectory: metrics.vo2Max ? computeVo2Trajectory(metrics.vo2Max, age, sex) : null,
     rhrTrend: metrics.restingHeartRate ? computeRhrTrend(metrics.restingHeartRate) : null,
     chronotype: computeChronotype(sleepNights),
+    stepsLongevity: metrics.stepCount ? computeStepsLongevity(metrics.stepCount, age) : null,
+    sleepDuration: computeSleepDuration(sleepNights),
+    trainingLoad: metrics.exerciseTime ? computeTrainingLoad(metrics.exerciseTime) : null,
+    fitnessPercentile: metrics.vo2Max ? computeFitnessPercentile(metrics.vo2Max, age, sex) : null,
   };
 }

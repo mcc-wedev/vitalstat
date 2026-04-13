@@ -11,8 +11,8 @@ interface Props {
 
 /** Color by zone */
 function zc(zone: string): string {
-  const green = ["adapted", "regular", "excellent", "above_avg", "improving", "maintaining", "minimal", "early", "moderate_early", "intermediate"];
-  const yellow = ["moderate", "average", "mild", "moderate_late", "declining_normal"];
+  const green = ["adapted", "regular", "excellent", "above_avg", "improving", "maintaining", "minimal", "early", "moderate_early", "intermediate", "optimal", "above_target", "on_target", "elite", "above_average"];
+  const yellow = ["moderate", "average", "mild", "moderate_late", "declining_normal", "good", "below_target", "building", "below_average"];
   if (green.includes(zone)) return "rgb(52,199,89)";
   if (yellow.includes(zone)) return "rgb(255,204,0)";
   return "rgb(255,59,48)";
@@ -27,6 +27,11 @@ function zoneLabel(zone: string): string {
     minimal: "Minim", mild: "Usor", significant: "Semnificativ",
     early: "Matinal", moderate_early: "Moderat matinal", intermediate: "Intermediar",
     moderate_late: "Moderat nocturn", late: "Nocturn",
+    optimal: "Optim", good: "Bun", above_target: "Peste tinta", on_target: "La tinta",
+    below_target: "Sub tinta", short: "Insuficient", very_short: "Foarte putin",
+    long: "Prea mult", very_long: "Excesiv",
+    building: "Crestere rapida", high_risk: "Risc accidentare", detraining: "Deantrenare",
+    elite: "Elit", above_average: "Peste medie", below_average: "Sub medie",
   };
   return m[zone] || zone;
 }
@@ -187,6 +192,92 @@ function chronoExplain(jetLag: number, chronotype: string, msfsc: number): { exp
   };
 }
 
+function stepsExplain(avgSteps: number, zone: string, target: number, mortalityReduction: number): { explain: string; tip?: string } {
+  const base = `Faci in medie ${Math.round(avgSteps).toLocaleString()} de pasi pe zi. Un studiu pe 47,471 de oameni a aratat ca fiecare 1,000 de pasi in plus scade riscul de mortalitate cu ~15%, pana la un plafon.`;
+  if (zone === "excellent" || zone === "above_target") return {
+    explain: `${base} Esti peste tinta de ${target.toLocaleString()} — riscul tau de mortalitate e cu ~${mortalityReduction}% mai mic decat al celor sedentari.`,
+  };
+  if (zone === "on_target") return {
+    explain: `${base} Esti aproape de tinta de ${target.toLocaleString()} pasi. Riscul tau e deja cu ~${mortalityReduction}% mai mic.`,
+    tip: "Inca ${(target - avgSteps).toFixed(0)} pasi/zi te-ar duce la tinta optima.",
+  };
+  if (zone === "below_target") return {
+    explain: `${base} Esti sub tinta de ${target.toLocaleString()} pasi. Vestea buna: chiar si o crestere mica conteaza — fiecare 1,000 de pasi in plus face diferenta.`,
+    tip: "Adauga o plimbare de 15 min dupa masa. Aduce ~2,000 pasi in plus.",
+  };
+  return {
+    explain: `${base} Cu mai putin de 4,000 pasi/zi, esti in zona sedentara. Dar cercetarea arata ca orice pas in plus ajuta — nu trebuie sa faci 10,000.`,
+    tip: "Incepe cu tinta de 5,000 pasi/zi si creste treptat.",
+  };
+}
+
+function sleepDurExplain(avgHours: number, zone: string): { explain: string; tip?: string } {
+  const base = `Dormi in medie ${avgHours.toFixed(1)} ore pe noapte. Cel mai mare studiu pe somn (1.38 milioane de oameni) a aratat o curba in U: atat somnul prea scurt cat si cel prea lung cresc riscul de mortalitate.`;
+  if (zone === "optimal") return {
+    explain: `${base} Tu esti exact in zona optima (7-8h) — riscul minim.`,
+  };
+  if (zone === "good") return {
+    explain: `${base} Esti aproape de zona optima. Riscul e doar usor crescut.`,
+  };
+  if (zone === "short") return {
+    explain: `${base} Sub 6 ore, studiul arata +12% risc de mortalitate. Corpul nu are timp suficient pentru repararea celulara si consolidarea memoriei.`,
+    tip: "Muta ora de culcare cu 30 min mai devreme. In 2 saptamani vei simti diferenta.",
+  };
+  if (zone === "very_short") return {
+    explain: `${base} Sub 5 ore constant e un semnal serios. Creste riscul cardiovascular, scade imunitatea si afecteaza cognitia.`,
+    tip: "Prioritar: identifica ce te tine treaz (ecrane, stres, cafeina dupa ora 14).",
+  };
+  if (zone === "long") return {
+    explain: `${base} Peste 9 ore, studiul arata +30% risc de mortalitate. Somnul excesiv poate indica o problema de sanatate subiacenta (inflamatie, depresie, apnee).`,
+    tip: "Daca dormi mult si tot esti obosit, discuta cu medicul.",
+  };
+  return {
+    explain: `${base} Somnul constant peste 10 ore e asociat cu risc semnificativ crescut. Merita investigat medical.`,
+    tip: "Consulta un medic — poate fi apnee de somn, hipotiroidism sau depresie.",
+  };
+}
+
+function trainingExplain(acwr: number, zone: string, weeklyMin: number): { explain: string; tip?: string } {
+  const base = `Raportul de incarcare (ACWR) masoara cat antrenezi ACUM vs. cat ai antrenat LUNA TRECUTA. E cel mai studiat predictor de accidentari in sport.`;
+  if (zone === "optimal") return {
+    explain: `${base} Raportul tau e ${acwr.toFixed(2)} — in zona optima (0.8-1.3). Antrenezi suficient fara sa te expui la accidentare. Ai facut ${weeklyMin} min exercitiu saptamana asta.`,
+  };
+  if (zone === "building") return {
+    explain: `${base} Raportul e ${acwr.toFixed(2)} — ai crescut incarcarea recent. Nu e periculos inca, dar ai grija sa nu sariti direct la mult.`,
+    tip: "Regula de aur: nu creste volumul cu mai mult de 10% pe saptamana.",
+  };
+  if (zone === "high_risk") return {
+    explain: `${base} Raportul e ${acwr.toFixed(2)} — zona de risc! Ai crescut brusc volumul fata de ce faceai luna trecuta. Studiile arata ca peste 1.5, riscul de accidentare creste de 2-4 ori.`,
+    tip: "Reduce intensitatea in urmatoarele 5-7 zile. Corpul are nevoie de adaptare.",
+  };
+  return {
+    explain: `${base} Raportul e ${acwr.toFixed(2)} — ai antrenat mai putin decat de obicei. Un pic de pauza e OK, dar daca se prelungeste, pierzi adaptarile castigate.`,
+    tip: "Redu-te treptat la volumul anterior. Nu sari direct inapoi la 100%.",
+  };
+}
+
+function fitnessExplain(vo2: number, percentile: number, category: string, mortalityReduction: string, age: number): { explain: string; tip?: string } {
+  const base = `VO2 Max-ul tau (${vo2.toFixed(1)}) te plaseaza la percentila ${percentile} — adica esti mai fit decat ${percentile}% din oamenii de varsta ta.`;
+  if (category === "elite") return {
+    explain: `${base} Esti in categoria "elit" — studiul Cleveland Clinic (122,007 pacienti) a aratat ca fitness-ul extrem de ridicat scade riscul de mortalitate cu ~80%. Nu exista "prea fit" — beneficiul creste continuu.`,
+  };
+  if (category === "above_average") return {
+    explain: `${base} Esti peste medie — riscul de mortalitate e cu ~50% mai mic decat al celor sedentari. Un nivel excelent de protectie.`,
+  };
+  if (category === "average") return {
+    explain: `${base} Esti in medie — deja cu ~30% mai protejat decat sedentarii. Dar fiecare punct in plus de VO2 Max aduce beneficii masurabile.`,
+    tip: "2-3 sesiuni de cardio intens (intervale) pe saptamana cresc VO2 Max cel mai eficient.",
+  };
+  if (category === "below_average") return {
+    explain: `${base} Sub medie, dar vestea buna: cei care trec din "sub medie" in "medie" au cea mai mare reducere de risc. E cel mai important progres de facut.`,
+    tip: "Incepe cu 150 min/sapt de mers rapid. Dupa 6 sapt, adauga intervale (1 min rapid, 2 min usor).",
+  };
+  return {
+    explain: `${base} Fitness-ul scazut e cel mai puternic predictor de mortalitate — mai puternic decat fumatul sau diabetul. Dar e si cel mai reversibil.`,
+    tip: "Orice miscare conteaza. Chiar 10 min de mers zilnic e un inceput. Creste treptat.",
+  };
+}
+
 // ═══════════════════════════════════════════════════════════════
 
 export function EvidencePanel({ metrics, sleepNights }: Props) {
@@ -317,6 +408,84 @@ export function EvidencePanel({ metrics, sleepNights }: Props) {
             explain={explain}
             tip={tip}
             reference={report.chronotype.reference}
+          />
+        );
+      })()}
+
+      {report.stepsLongevity && (() => {
+        const { explain, tip } = stepsExplain(
+          report.stepsLongevity.avgSteps,
+          report.stepsLongevity.zone,
+          report.stepsLongevity.targetSteps,
+          report.stepsLongevity.mortalityReduction
+        );
+        return (
+          <MetricCard
+            title="Pasii tai si longevitatea"
+            value={Math.round(report.stepsLongevity.avgSteps).toLocaleString()}
+            unit="pasi/zi"
+            zone={report.stepsLongevity.zone}
+            explain={explain}
+            tip={tip}
+            reference={report.stepsLongevity.reference}
+          />
+        );
+      })()}
+
+      {report.sleepDuration && (() => {
+        const { explain, tip } = sleepDurExplain(
+          report.sleepDuration.avgHours,
+          report.sleepDuration.zone
+        );
+        return (
+          <MetricCard
+            title="Cat dormi — zona de risc"
+            value={report.sleepDuration.avgHours.toFixed(1)}
+            unit="ore/noapte"
+            zone={report.sleepDuration.zone}
+            explain={explain}
+            tip={tip}
+            reference={report.sleepDuration.reference}
+          />
+        );
+      })()}
+
+      {report.trainingLoad && (() => {
+        const { explain, tip } = trainingExplain(
+          report.trainingLoad.acwr,
+          report.trainingLoad.zone,
+          report.trainingLoad.weeklyMinutes
+        );
+        return (
+          <MetricCard
+            title="Echilibrul antrenamentului"
+            value={report.trainingLoad.acwr.toFixed(2)}
+            unit="raport acut:cronic"
+            zone={report.trainingLoad.zone}
+            explain={explain}
+            tip={tip}
+            reference={report.trainingLoad.reference}
+          />
+        );
+      })()}
+
+      {report.fitnessPercentile && (() => {
+        const { explain, tip } = fitnessExplain(
+          report.fitnessPercentile.vo2,
+          report.fitnessPercentile.percentile,
+          report.fitnessPercentile.category,
+          report.fitnessPercentile.mortalityReduction,
+          profile.age
+        );
+        return (
+          <MetricCard
+            title="Fitness vs. mortalitate"
+            value={`P${report.fitnessPercentile.percentile}`}
+            unit={`(VO2: ${report.fitnessPercentile.vo2.toFixed(1)})`}
+            zone={report.fitnessPercentile.category}
+            explain={explain}
+            tip={tip}
+            reference={report.fitnessPercentile.reference}
           />
         );
       })()}
